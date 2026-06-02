@@ -1,7 +1,7 @@
 > **For agentic workers:** Use `/si` to implement this task. Follow TDD (RED -> GREEN -> REFACTOR). Each step must have a failing test before production code. Update step checkboxes and test evidence during implementation, then use the completion summary for final verification evidence. See `.claude/skills/si/SKILL.md` for the full workflow.
 
 # Technical Decomposition: Phase 0 — Predictor Core MVP
-**Status**: Ready for Implementation | **Created**: 2026-06-03
+**Status**: In Progress (started 2026-06-03) | **Created**: 2026-06-03
 
 > **Lifecycle:** `Technical Review` -> `In Progress` -> `Implementation Complete`
 
@@ -259,13 +259,15 @@ cd apps/ui && pnpm lint
 > Wave annotations: `W0` runs before scaffold; `W1` can start immediately after W0; `W2` depends on `W1`; `W3` depends on `W2`; `W4` runs anywhere after `W1`.
 
 ### Step 0: Data-source probes [W0]
-- [ ] Sub-step 0.1: [REQ-007, REQ-012] Verify upstream coverage before writing ingest code
+- [x] Sub-step 0.1: [REQ-007, REQ-012] Verify upstream coverage before writing ingest code
   - **Files / modules**: `apps/predictor/scripts/probes/the_odds_api_probe.py`, `apps/predictor/scripts/probes/soccerdata_probe.py`, `apps/predictor/reports/probes-phase0.md`
   - **What changes**:
     - `the_odds_api_probe.py`: list sports + markets currently exposed for `soccer_fifa_world_cup`; record which of {h2h, totals, btts, corners} have prices for upcoming fixtures, capture sample payload to fixture dir for `respx` mocks.
     - `soccerdata_probe.py`: attempt FBref pull for one tournament (Euro 2024) + one club season; record whether Cloudflare blocks, time-to-first-byte, and whether corners are populated.
     - Write `reports/probes-phase0.md` summarising coverage gaps; if `corners_total` is unavailable in the-odds-api for WC 2026 fixtures, escalate before writing the corners-market code path.
-  - **Tests**: probes are scripts, not pytest targets — output report is the artifact.
+  - **Tests**: probes are scripts, not pytest targets — output report is the artifact. Both probe scripts executed 2026-06-03; raw outputs at `reports/probes-the-odds-api.json` and `reports/probes-soccerdata.json`; consolidated summary at `reports/probes-phase0.md`.
+  - **Findings**: the-odds-api exposes `h2h` (36 books) and `totals` (16 books) for `soccer_fifa_world_cup`; `btts` and `alternate_totals_corners` rejected as `INVALID_MARKET`. FBref reachable from this network (no Cloudflare block); Euro 2024 schedule pulled 51 rows in 75s; corners live under `stat_type="misc"` per soccerdata 1.9.0.
+  - **Escalation (R2)**: BTTS + corners EV cannot be computed in Phase 0 against the-odds-api. Recommended scope adjustment captured in `reports/probes-phase0.md` §3 — awaiting user confirmation before Step 5.1.
   - **Depends on**: nothing (can run before any other step; informs Step 5 and Step 6 risk profile).
 
 ### Step 1: Repo scaffold + CI [W1]
@@ -283,7 +285,7 @@ cd apps/ui && pnpm lint
 - [ ] Sub-step 1.2: [REQ-002] GitHub Actions CI
   - **Files / modules**: `.github/workflows/ci.yml`
   - **What changes**:
-    - Matrix: ubuntu-latest, Python 3.12, Node 22.
+    - Matrix: ubuntu-latest, Python 3.12, Node 24.
     - Steps: setup uv, setup pnpm, `make ci`.
     - Caches for uv and pnpm.
   - **Tests**: PR runs CI and passes on scaffold-only state.
@@ -426,7 +428,7 @@ cd apps/ui && pnpm lint
 ### Dependencies
 - External APIs: `the-odds-api` (free tier 500 req/mo — manage with caching), `soccerdata` library for FBref + StatsBomb access.
 - Static data: WC 2026 squad rosters must be manually seeded as final squads are announced (~7 days pre-tournament).
-- Tooling: `uv`, `pnpm`, Python 3.12, Node 22.
+- Tooling: `uv`, `pnpm`, Python 3.12, Node 24.
 
 ### Risks
 - **R1: Calibration fails the 0.98 Brier gate.** WC sample is tiny; club-only training may not transfer to international play. Mitigation: report identifies *which* markets fail; corners and totals likely to pass even if 1X2 doesn't, which still unlocks Phase 1 paper-trade on the markets that do pass.
@@ -447,7 +449,7 @@ cd apps/ui && pnpm lint
 ### Tracking
 - **Issue ID**: not yet created
 - **Issue URL**: n/a
-- **Branch / PR**: to be assigned during implementation
+- **Branch / PR**: `main` (single-developer repo; conventional commits per step)
 - **Split status**: NO SPLIT — task-splitter evaluated 2026-06-03 and recommended keeping as one task. Reasoning: the Brier acceptance gate cannot be evaluated until data + model + de-vig coexist; UI is contract-coupled to API via OpenAPI codegen; Wave annotations (W0–W4) already give internal parallelism without multi-task coordination overhead.
 
 ### Notes

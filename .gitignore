@@ -48,3 +48,7 @@ Thumbs.db
 # --- Logs ---
 *.log
 logs/
+
+# --- Claude Code working artifacts ---
+.claude/scheduled_tasks.lock
+downloaded_files/

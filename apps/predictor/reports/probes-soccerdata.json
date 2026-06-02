@@ -1,0 +1,43 @@
+{
+  "captured_at": "2026-06-02T21:02:25.503053+00:00",
+  "probes": [
+    {
+      "label": "fbref-euro-2024-schedule",
+      "status": "ok",
+      "rows": 51,
+      "cols": 14,
+      "sample_columns": [
+        "round",
+        "week",
+        "day",
+        "date",
+        "time",
+        "home_team",
+        "score",
+        "away_team",
+        "attendance",
+        "venue",
+        "referee",
+        "match_report",
+        "notes",
+        "game_id"
+      ],
+      "has_corners_signal": false,
+      "elapsed_s": 74.5
+    },
+    {
+      "label": "fbref-epl-2023-24-team-stats",
+      "status": "error",
+      "error_type": "ValueError",
+      "error_msg": "Invalid argument: stat_type should be in ['schedule', 'shooting', 'keeper', 'misc']",
+      "cloudflare_suspected": false,
+      "traceback_tail": [
+        "  File \"C:\\Users\\\u0424\u0430\u0440\u0445\u0430\u0434\\AppData\\Local\\uv\\cache\\archive-v0\\d6RmL-467rFmzQ0M\\Lib\\site-packages\\soccerdata\\fbref.py\", line 385, in read_team_match_stats",
+        "    raise ValueError(f\"Invalid argument: stat_type should be in {team_stats}\")",
+        "ValueError: Invalid argument: stat_type should be in ['schedule', 'shooting', 'keeper', 'misc']"
+      ],
+      "elapsed_s": 3.9
+    }
+  ],
+  "soccerdata_version": "1.9.0"
+}

@@ -1,0 +1,40 @@
+{
+  "captured_at": "2026-06-02T21:01:05.636605+00:00",
+  "sport_key": "soccer_fifa_world_cup",
+  "probes": {
+    "h2h": {
+      "status": 200,
+      "quota_remaining": "498",
+      "fixture_count": 72,
+      "bookmaker_count_first": 36,
+      "fixture_saved": "apps\\predictor\\tests\\fixtures\\odds_api\\h2h.json"
+    },
+    "totals": {
+      "status": 200,
+      "quota_remaining": "496",
+      "fixture_count": 72,
+      "bookmaker_count_first": 16,
+      "fixture_saved": "apps\\predictor\\tests\\fixtures\\odds_api\\totals.json"
+    },
+    "btts": {
+      "status": 422,
+      "quota_remaining": "496",
+      "error": "{\"message\":\"Markets not supported by this endpoint: btts\",\"error_code\":\"INVALID_MARKET\",\"details_url\":\"https://the-odds-api.com/liveapi/guides/v4/api-error-codes.html#invalid-market\"}\n"
+    },
+    "alternate_totals_corners": {
+      "status": 422,
+      "quota_remaining": "496",
+      "error": "{\"message\":\"Markets not supported by this endpoint: alternate_totals_corners\",\"error_code\":\"INVALID_MARKET\",\"details_url\":\"https://the-odds-api.com/liveapi/guides/v4/api-error-codes.html#invalid-market\"}\n"
+    }
+  },
+  "sports_status": 200,
+  "quota_remaining": "500",
+  "quota_used": "0",
+  "sport_exposed": true,
+  "sport_details": {
+    "title": "FIFA World Cup",
+    "active": true,
+    "has_outrights": false,
+    "group": "Soccer"
+  }
+}
