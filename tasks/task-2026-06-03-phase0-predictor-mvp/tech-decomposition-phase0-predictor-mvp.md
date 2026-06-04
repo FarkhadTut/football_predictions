@@ -251,6 +251,7 @@ cd apps/ui && pnpm lint
 | 17 | 1xbet scraper in Phase 0 | Keep full scraper module (probe + Cloudflare branch + status report) — reviewer suggested deferring to Phase 1, user overrode | User wants the scraper interface stable before WC starts so Phase 1 can iterate on parsing only. Cost is one file + one test pair; risk is contained because failures cannot break CI by design. |
 | 18 | Squad seeding | Heuristic loader: pull last 12 months of senior caps per qualifying nation from FBref/transfermarkt via `soccerdata`; treat anyone with ≥3 senior caps or active in top-5 league + national-pool as "likely squad"; refine from announced squads as they drop (2026-06-04 onward) | Manually entering ~1,248 players for 48 squads is not realistic in the timeline. The heuristic is partial-data tolerant and the model gracefully handles missing player rows. |
 | 19 | Configuration + observability | `pydantic-settings` + `structlog` JSON logging, `.env.example` checked in | Reviewer flagged absence; both are cheap to add at scaffold time and painful to retrofit. |
+| 20 | BTTS + corners live odds (Step 0 escalation) | Source BTTS + corner totals from the 1xbet HTML scraper only; the-odds-api `soccer_fifa_world_cup` rejects both as `INVALID_MARKET` (probe 2026-06-03). h2h + totals continue to use the-odds-api as primary line-shop source. If 1xbet HTML fails Cloudflare, the UI shows BTTS/corners model marginals with an "indicative — no book" badge and the EV column is blank for those rows. | Probe finding from Step 0.1 closed off the the-odds-api path. Backtest calibration is unaffected (uses historical Pinnacle closes via Football-Data.co.uk, not the-odds-api). Couples BTTS/corners EV display to R4 — accepted because it preserves the four-market model output that Phase 1 staking depends on. |
 
 ---
 
@@ -363,8 +364,10 @@ cd apps/ui && pnpm lint
   - **What changes**:
     - Attempt fetch with realistic browser headers via `httpx`.
     - Detect Cloudflare challenge page; raise `CloudflareBlocked`.
+    - Parse h2h, totals, **BTTS, and corner totals** (decision #20: 1xbet is the only Phase 0 source for BTTS + corners).
+    - On `CloudflareBlocked`, persist a `MarketAvailability(market, reason="cloudflare_blocked")` row so the API layer (Step 7) can return an explicit "indicative — no book" flag for BTTS/corners EV.
     - CLI: `uv run python -m predictor.odds.one_x_bet probe` writes status report.
-  - **Tests**: unit test with two recorded HTML samples (200 with odds, 403 Cloudflare). No live HTTP in CI.
+  - **Tests**: unit test with two recorded HTML samples (200 with full markets, 403 Cloudflare); a third sample missing the BTTS block exercises the partial-coverage path. No live HTTP in CI.
   - **Depends on**: 5.1.
 
 ### Step 6: Walk-forward backtest + acceptance gate [W3]
@@ -432,12 +435,13 @@ cd apps/ui && pnpm lint
 
 ### Risks
 - **R1: Calibration fails the 0.98 Brier gate.** WC sample is tiny; club-only training may not transfer to international play. Mitigation: report identifies *which* markets fail; corners and totals likely to pass even if 1X2 doesn't, which still unlocks Phase 1 paper-trade on the markets that do pass.
-- **R2: the-odds-api WC 2026 coverage incomplete.** Discovered late = scramble. Mitigation: Step 5.1 first action is a coverage probe that lists supported markets per fixture; if gaps, escalate to fallback book (Pinnacle direct).
-- **R3: FBref Cloudflare blocks `soccerdata`.** Mitigation: `soccerdata` has built-in throttling; if blocked, fall back to local cached snapshots from public archives (statsbombpy + worldfootballR datasets).
-- **R4: 8-day deadline.** Mitigation: Playwright E2E dropped in favor of a Python SSE integration test + vitest component coverage (decision #15); 1xbet scraper degraded to "deferral note" on Cloudflare block (decision #9); UI scope limited to fixtures list + match page.
+- **R2: the-odds-api WC 2026 coverage incomplete.** **RESOLVED 2026-06-03 via Step 0.1 probe + decision #20**: `soccer_fifa_world_cup` exposes `h2h` and `totals` only (72 fixtures × 36 / 16 books). `btts` and `alternate_totals_corners` rejected as `INVALID_MARKET`. BTTS + corners EV now sourced exclusively from the 1xbet HTML scraper (Step 5.2 / 5.3). h2h + totals stay on the-odds-api. See `apps/predictor/reports/probes-phase0.md`. New coupled risk filed as R8.
+- **R3: FBref Cloudflare blocks `soccerdata`.** **PROBED 2026-06-03**: no block from this network; Euro 2024 schedule pulled in 74.5s. Primary path stays unmodified. Mitigation retained: `soccerdata` has built-in throttling; if blocked later, fall back to local cached snapshots from public archives (statsbombpy + worldfootballR datasets).
+- **R4: 8-day deadline.** Mitigation: Playwright E2E dropped in favor of a Python SSE integration test + vitest component coverage (decision #15); UI scope limited to fixtures list + match page. (1xbet scraper is no longer a "soft" risk — see R8.)
 - **R6: Heuristic squad list misses late call-ups or includes wrong players.** Mitigation: model handles missing-player rows gracefully; the `--source announced` flag lets us re-run training once final squads drop (~2026-06-04 onward) without code changes.
 - **R7: Older tournaments (Euro 2016, WC 2014) have spottier coverage in Football-Data.co.uk.** Mitigation: the per-tournament report flags any matches dropped for missing baseline odds; gate threshold is computed only on matches with both model + baseline probabilities.
 - **R5: Pydantic ↔ Zod codegen drift.** Mitigation: codegen runs in CI; any divergence fails typecheck on the UI side.
+- **R8: BTTS + corners EV depends entirely on the 1xbet HTML scraper (decision #20).** Cloudflare block on 1xbet now degrades two things at once: the live scraper *and* EV display for BTTS + `corners_total_9_5`. Mitigation: model marginals for both markets are always emitted by the predictor regardless of scraper state; UI shows them with an "indicative — no book" badge and a blank EV column when `MarketAvailability` rows record `reason="cloudflare_blocked"`. Backtest calibration is unaffected (uses Football-Data.co.uk historical Pinnacle closes, not live odds). Phase 1 escalation path: add a second BTTS/corners book (Bet365 HTML or Pinnacle direct) once the staking UI lands.
 
 ### Blockers
 - None for starting Step 1. Step 3.2 (club matches for squad players) is partially blocked on final squad announcements (~2026-06-04 onward); the loader tolerates partial squads, so this does not block Phase 0 completion.
