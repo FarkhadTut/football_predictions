@@ -67,7 +67,9 @@ def main() -> int:
         wc = next((s for s in sports if s.get("key") == SPORT_KEY), None)
         findings["sport_exposed"] = wc is not None
         if wc:
-            findings["sport_details"] = {k: wc.get(k) for k in ("title", "active", "has_outrights", "group")}
+            findings["sport_details"] = {
+                k: wc.get(k) for k in ("title", "active", "has_outrights", "group")
+            }
 
         # 2) per-market odds probe — one call each so coverage is unambiguous
         for market in PROBE_MARKETS:

@@ -1,0 +1,18 @@
+# Default: normalize text to LF in the repo, let git handle local line endings.
+* text=auto eol=lf
+
+# Always LF (these break under CRLF on Linux runners).
+*.sh         text eol=lf
+Makefile     text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+
+# Lockfiles are managed by their tool — never touch line endings.
+pnpm-lock.yaml -text
+uv.lock        -text
+
+# Binaries.
+*.png   binary
+*.jpg   binary
+*.npy   binary
+*.db    binary

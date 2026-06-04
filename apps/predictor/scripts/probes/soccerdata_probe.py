@@ -34,7 +34,7 @@ def _probe(label: str, fn) -> dict[str, object]:
         # corners are usually named CK or "corner_kicks" depending on stat_type
         cols_lower = " ".join(map(str, df.columns)).lower()
         entry["has_corners_signal"] = any(t in cols_lower for t in ("corner", "ck"))
-    except Exception as exc:  # noqa: BLE001 — probe records *any* failure
+    except Exception as exc:
         entry["status"] = "error"
         entry["error_type"] = type(exc).__name__
         entry["error_msg"] = str(exc)[:500]
@@ -58,7 +58,7 @@ def main() -> int:
 
     # Import inside so the file is at least syntactically importable without
     # soccerdata installed (we run via `uv run --with soccerdata`).
-    import soccerdata as sd  # noqa: PLC0415
+    import soccerdata as sd
 
     findings["soccerdata_version"] = getattr(sd, "__version__", "unknown")
 

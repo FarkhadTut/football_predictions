@@ -272,24 +272,29 @@ cd apps/ui && pnpm lint
   - **Depends on**: nothing (can run before any other step; informs Step 5 and Step 6 risk profile).
 
 ### Step 1: Repo scaffold + CI [W1]
-- [ ] Sub-step 1.1: [REQ-001] Initialize monorepo
+- [x] Sub-step 1.1: [REQ-001] Initialize monorepo
   - **Files / modules**: repo root, `apps/predictor/pyproject.toml`, `apps/ui/package.json`, `packages/schemas/`, `pnpm-workspace.yaml`, `Makefile`, `.gitignore`, `.editorconfig`
   - **What changes**:
-    - Create `apps/predictor` with `uv init`, configure `pyproject.toml` with deps: `fastapi`, `uvicorn`, `sqlmodel`, `alembic`, `pydantic`, `pydantic-settings`, `structlog`, `sse-starlette`, `scipy`, `numpy`, `pandas`, `soccerdata`, `respx`, `httpx`, `pytest`, `pytest-asyncio`, `mypy`, `ruff`, `watchfiles`.
-    - Create `apps/ui` with Vite React-TS template, configure `pnpm` and add deps: `react`, `react-router`, `@tanstack/react-query`, `zod`, `openapi-typescript`, `vitest`, `@testing-library/react`, `eslint`, `prettier`.
-    - Create `packages/schemas` for shared Pydantic models exportable to OpenAPI.
-    - Root `Makefile` with `ci`, `dev`, `smoke-live`, `migrate`, `seed`, `probes`.
-    - Check in `.env.example` listing every env var consumed by `pydantic-settings`; add `.env` to `.gitignore`. Configure `structlog` JSON output in `predictor/observability.py`, imported by every entrypoint.
-  - **Tests**: `make ci` runs and is green on empty scaffold (mypy/ruff/pytest pass with no targets; pnpm typecheck/test/lint pass on Vite default).
+    - Created `apps/predictor` with `pyproject.toml` (Python 3.12, hatch build, ruff + mypy strict, pytest-asyncio auto). Deps: `fastapi`, `uvicorn[standard]`, `sqlmodel`, `alembic`, `pydantic`, `pydantic-settings`, `structlog`, `sse-starlette`, `scipy`, `numpy`, `pandas`, `soccerdata`, `httpx`, `watchfiles`, `python-dotenv`. Dev: `pytest`, `pytest-asyncio`, `respx`, `mypy`, `ruff`.
+    - Created `apps/ui` with Vite + React 18 + TS strict (`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess` via strict). Deps: `react`, `react-dom`, `react-router-dom`, `@tanstack/react-query`, `zod`. Dev: `vitest`, `@testing-library/react`, `eslint` (flat config) + plugins, `openapi-typescript`.
+    - Created `packages/schemas` placeholder (OpenAPI→Zod codegen lands in Step 6).
+    - `pnpm-workspace.yaml` covers `apps/ui` + `packages/*`.
+    - Root `Makefile` with `ci`, `lint`, `test`, `typecheck`, `dev-{api,ui}`, `smoke-live`, `migrate`, `seed`, `probes`. `SHELL := bash` for POSIX recipes (CI uses GNU Make 4.x on Ubuntu).
+    - `scripts/ci.sh` portable fallback for local Windows (GNU Make 3.75 from Cygwin can't honor modern SHELL semantics).
+    - `apps/predictor/.env.example` committed (real `.env` gitignored). `predictor/observability.py` configures structlog JSON output; smoke-tested in `tests/test_observability.py`.
+    - `.editorconfig` added at repo root.
+  - **Tests**: `bash scripts/ci.sh` — ALL GREEN. ruff: clean; ruff format: 6/6; mypy: 4 files, 0 errors; pytest: 3 passed; pnpm lint: clean; pnpm typecheck: clean; pnpm test: 1 passed (App.test.tsx).
   - **Depends on**: none.
 
-- [ ] Sub-step 1.2: [REQ-002] GitHub Actions CI
+- [x] Sub-step 1.2: [REQ-002] GitHub Actions CI
   - **Files / modules**: `.github/workflows/ci.yml`
   - **What changes**:
-    - Matrix: ubuntu-latest, Python 3.12, Node 24.
-    - Steps: setup uv, setup pnpm, `make ci`.
-    - Caches for uv and pnpm.
-  - **Tests**: PR runs CI and passes on scaffold-only state.
+    - Matrix: ubuntu-latest, Python 3.12, Node 24, pnpm 10.
+    - Setup uv with cache keyed on `apps/predictor/uv.lock`; `uv sync --frozen --all-groups`.
+    - Setup pnpm + Node with pnpm cache; `pnpm install --frozen-lockfile`.
+    - Runs the individual steps (ruff lint, ruff format check, mypy, pytest, `pnpm -r lint`, `pnpm -r typecheck`, `pnpm -r test`) directly rather than `make ci` — keeps the workflow readable and avoids the Windows make divergence.
+    - `concurrency` group cancels stale runs on the same branch.
+  - **Tests**: workflow validates locally via `bash scripts/ci.sh` (same command set as CI). First push to `main` will validate against GH-hosted Ubuntu.
   - **Depends on**: 1.1.
 
 ### Step 2: SQLite schema + migrations [W2]
