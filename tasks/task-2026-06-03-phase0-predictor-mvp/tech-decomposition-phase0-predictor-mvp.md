@@ -396,12 +396,14 @@ cd apps/ui && pnpm lint
   - **Depends on**: 5.1.
 
 ### Step 6: Walk-forward backtest + acceptance gate [W3]
-- [ ] Sub-step 6.1: [REQ-007] Backtest harness
-  - **Files / modules**: `apps/predictor/src/predictor/backtest/run.py`, `apps/predictor/src/predictor/backtest/metrics.py`
+- [x] Sub-step 6.1: [REQ-007] Backtest harness
+  - **Files / modules**: `apps/predictor/src/predictor/backtest/{run.py,metrics.py,acceptance.py}` + matching tests under `apps/predictor/tests/backtest/`.
   - **What changes**:
-    - For each held-out tournament: fit DC on all data prior to tournament start (writing a `model_runs` row per fit), predict each match, compare against implied-odds baseline derived from de-vigged closing odds.
-    - Output `reports/backtest-phase0.md` (human-readable, includes reliability diagrams from TEST-014) **and** `reports/backtest-phase0.json` (machine-readable sidecar consumed by `acceptance.check`).
-  - **Tests**: `tests/backtest/test_metrics.py` validates Brier calculator; TEST-007 enforces the acceptance gate against a fixture report.
+    - `metrics.brier_score` (multi-outcome) + `metrics.reliability` (uniform bins on `[0,1]`, ECE).
+    - `acceptance` module owns the REQ-007 gate: `MARKETS`, `THRESHOLD=0.98`, `MIN_MARKETS_PASSING=3`, `BacktestReport`, `AcceptanceResult`, `check`, `load_report`. Lock-in test asserts the constants so any silent change breaks loudly.
+    - `run.aggregate` is the pure aggregator (bucket per-match predictions by tournament + market, score Brier vs baseline); `run.run_walk_forward` refits DC per tournament on training rows strictly preceding the tournament's first kickoff and derives 1X2 / OU 2.5 / BTTS / corners-9.5 marginals via `predictor.model.markets`.
+    - `run.render_markdown` + `run.write_reports` emit `reports/backtest-phase0.{md,json}`; the JSON sidecar round-trips through `acceptance.load_report` so TEST-007 can verify the gate without re-running the model. CLI `_main` lazy-imports `predictor.backtest.dataset` (deferred to Step 7 wiring).
+  - **Tests**: `tests/backtest/test_metrics.py` (9, incl. hand-verified ECE), `tests/backtest/test_acceptance.py` (6, incl. constants lock-in + JSON round-trip), `tests/backtest/test_run.py` (9, incl. synthetic-corpus walk-forward where the DC model beats a uniform baseline). `uv run pytest tests/backtest/ -q` → 24/24 PASS. Full suite `uv run pytest -q` → 100/100 PASS. `uv run mypy src tests` clean, `uv run ruff check src tests` + `uv run ruff format --check src tests` clean.
   - **Depends on**: 4.2, 5.2.
 
 ### Step 7: FastAPI backend + claude_notes ingest [W4]
