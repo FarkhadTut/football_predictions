@@ -1,0 +1,5 @@
+{
+  "as_of_date": "2026-06-04",
+  "_comment": "Announced WC 2026 national-team squads. Populate per nation as federations publish their 23-player lists (typically late May / early June 2026). Schema: nations -> {nation_name: [{name, fbref_id?, position?}, ...]}. Until populated, the heuristic seeder (source='heuristic' rows in wc_squads) is the only source.",
+  "nations": {}
+}

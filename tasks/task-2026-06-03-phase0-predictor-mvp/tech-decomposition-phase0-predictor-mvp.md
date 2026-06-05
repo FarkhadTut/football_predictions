@@ -323,13 +323,15 @@ cd apps/ui && pnpm lint
   - **Tests**: `uv run pytest tests/ingest -v` → 7 passed in 27.50s. Covers: catalog lookup (known + unknown), first-load inserts (4 teams, 3 matches, 4 stats — one scheduled + two final), idempotent reload (all counts zero), score-update reload (matches_updated == 1, status → "final"), stat-update reload (stats_updated == 1), orphan stat skipped. Full quality gate: `uv run ruff check .` clean, `uv run ruff format --check .` clean (18 files), `uv run mypy` 14 files 0 errors, `uv run pytest` 12 passed in 32.24s.
   - **Depends on**: 2.1.
 
-- [ ] Sub-step 3.2: [REQ-003] Club matches for WC 2026 squad players (heuristic seeding)
-  - **Files / modules**: `apps/predictor/src/predictor/ingest/clubs.py`, `apps/predictor/src/predictor/ingest/squad_heuristic.py`, `apps/predictor/data/wc2026_squads.json`
+- [x] Sub-step 3.2: [REQ-003] Club matches for WC 2026 squad players (heuristic seeding)
+  - **Files / modules**: `apps/predictor/src/predictor/ingest/clubs.py`, `apps/predictor/src/predictor/ingest/squad_heuristic.py`, `apps/predictor/src/predictor/ingest/squads.py`, `apps/predictor/src/predictor/ingest/contracts.py`, `apps/predictor/src/predictor/ingest/_upsert.py`, `apps/predictor/data/wc2026_squads.json`
   - **What changes**:
-    - `squad_heuristic.candidates_for(nation, as_of_date)` returns "likely squad" players based on: ≥3 senior caps in the last 12 months OR active starter in a top-5 league + at least one senior cap. Pulls from `soccerdata` FBref + national-team caps tables.
-    - `load_recent_club_matches(candidate_player_ids, since_date)` pulls last 3 seasons of club matches involving any candidate.
-    - `data/wc2026_squads.json` is regenerated from the heuristic and merged with confirmed squad announcements as they drop (2026-06-04 onward); a `--source heuristic|announced|merged` flag controls which view is used downstream.
-  - **Tests**: unit test on the heuristic filter with a fixture players-and-caps dataset; unit test on the join logic; mocked HTTP for one team.
+    - `squad_heuristic.candidates_for(source, nation, as_of_date)` returns "likely squad" players based on: ≥3 senior caps in the last 12 months OR ≥1 start in a top-5 league + ≥1 senior cap. Pure function on a `PlayerCapsSource` Protocol (FBref adapter deferred to live-smoke step).
+    - `clubs.load_recent_club_matches(session, source, player_fbref_ids, since)` upserts club-match schedule + per-team stats for the candidate pool via a `ClubMatchSource` Protocol. Reuses the shared `_upsert.upsert_schedule_and_stats` helper extracted from the tournament loader so both paths share natural-key idempotency.
+    - `squads.write_heuristic_squads` / `write_announced_squads` persist `players` + `wc_squads` rows with `source` ∈ {`heuristic`, `announced`}. Player natural key `(name, nation)`; refreshes `fbref_id`/`position` when later writes carry richer metadata. `load_announced_squads_json` parses the on-disk feed.
+    - `data/wc2026_squads.json` ships as an empty scaffold (`nations: {}`); to be populated as federations announce squads from 2026-06-04 onward. Downstream `--source heuristic|announced|merged` view flag deferred until model fitting needs to pick.
+  - **Decision deviation**: Replaced "mocked HTTP for one team" with Protocol-based `FakeClubSource` for parity with the Step 3.1 contract pattern. Extracted shared `contracts.py` (`ScheduleRow`, `TeamMatchStatRow`) + `_upsert.py` so club + tournament loaders share the upsert core verbatim.
+  - **Tests**: `uv run pytest` → **37 passed in 65.82s**. New coverage: `test_squad_heuristic.py` (15 tests — rule (a), rule (b), top-5 league parametrization, exclusion edge cases, sorting, window enforcement, nation filtering); `test_clubs.py` (2 tests — first-load insert + idempotent reload, candidate pool forwarded to source verbatim); `test_squads.py` (8 tests — heuristic insert, idempotency, metadata refresh, heuristic+announced coexistence for same player, announced idempotency, JSON round-trip incl. missing-optional and empty-nations scaffolds). Full quality gate: `uv run ruff check .` clean, `uv run ruff format --check .` clean, `uv run mypy` 22 source files 0 errors.
   - **Depends on**: 2.1.
 
 ### Step 4: Dixon-Coles model + market derivation [W3]
