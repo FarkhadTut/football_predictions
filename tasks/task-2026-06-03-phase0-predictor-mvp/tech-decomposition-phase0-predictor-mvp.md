@@ -313,12 +313,14 @@ cd apps/ui && pnpm lint
   - **Depends on**: 1.1.
 
 ### Step 3: Historical data loaders [W2]
-- [ ] Sub-step 3.1: [REQ-003] Tournament loader
-  - **Files / modules**: `apps/predictor/src/predictor/ingest/tournaments.py`
+- [x] Sub-step 3.1: [REQ-003] Tournament loader
+  - **Files / modules**: `apps/predictor/src/predictor/ingest/tournaments.py`, `apps/predictor/tests/ingest/test_tournaments.py`
   - **What changes**:
-    - `load_tournament(name, year)` pulls match results + per-team match stats (shots, corners, cards) from `soccerdata` for: Euro 2024, WC 2022, Euro 2020, WC 2018, Euro 2016, WC 2014.
-    - Writes to `matches` and `match_stats`. Idempotent on `(competition, season, home_team_id, away_team_id, kickoff_utc)`.
-  - **Tests**: `tests/ingest/test_tournaments.py` with `respx`-mocked `soccerdata` HTTP responses for a 3-match fixture.
+    - `load_tournament(session, source, name, season)` upserts `matches` + `match_stats` from a `TournamentSource`. Idempotent on `(competition, season, home_team_id, away_team_id, kickoff_utc)` for matches and `(match_id, team_id)` for stats. Returns `LoadResult` with insert/update counts.
+    - `TOURNAMENT_CATALOG` maps friendly names ("Euro 2024", "WC 2022", …) → FBref league ids (`INT-European Championship`, `INT-World Cup`).
+    - Source decoupling: caller-defined `TournamentSource` Protocol returns typed `ScheduleRow` / `TeamMatchStatRow` dataclasses. Production FBref adapter (thin `soccerdata.FBref` wrapper) deferred — Protocol contract is enough for unit-testable ingestion; adapter will be added alongside the smoke-live step.
+  - **Decision deviation**: Plan originally specified `respx`-mocked `soccerdata` HTTP. `soccerdata` does its own disk caching + rate limiting + multi-stage HTTP, making HTTP-level mocks fragile. Replaced with `FakeSource` injected via Protocol — cleaner contract, faster tests, no transport coupling.
+  - **Tests**: `uv run pytest tests/ingest -v` → 7 passed in 27.50s. Covers: catalog lookup (known + unknown), first-load inserts (4 teams, 3 matches, 4 stats — one scheduled + two final), idempotent reload (all counts zero), score-update reload (matches_updated == 1, status → "final"), stat-update reload (stats_updated == 1), orphan stat skipped. Full quality gate: `uv run ruff check .` clean, `uv run ruff format --check .` clean (18 files), `uv run mypy` 14 files 0 errors, `uv run pytest` 12 passed in 32.24s.
   - **Depends on**: 2.1.
 
 - [ ] Sub-step 3.2: [REQ-003] Club matches for WC 2026 squad players (heuristic seeding)
