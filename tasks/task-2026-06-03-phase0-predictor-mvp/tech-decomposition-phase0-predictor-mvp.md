@@ -348,12 +348,13 @@ cd apps/ui && pnpm lint
   - **Decision deviation**: TEST-003 spec text had the ρ-correction direction reversed. Canonical Dixon & Coles (1997) convention has τ(0,0)=1−λμρ, τ(1,1)=1−ρ, so for empirically-fit ρ < 0 the (0,0) and (1,1) draw cells **rise** while (1,0) and (0,1) narrow-win cells **fall** — the implementation follows this convention and the test asserts in that direction with a comment cross-referencing the spec deviation.
   - **Depends on**: 1.1.
 
-- [ ] Sub-step 4.2: [REQ-005] Markets from score matrix
-  - **Files / modules**: `apps/predictor/src/predictor/model/markets.py`
+- [x] Sub-step 4.2: [REQ-005] Markets from score matrix
+  - **Files / modules**: `apps/predictor/src/predictor/model/markets.py`, `apps/predictor/tests/model/test_markets.py`
   - **What changes**:
-    - `from_score_matrix(M) -> MarketMarginals` for 1X2, O/U 2.5, BTTS.
-    - Separate `corner_total_prob(λ_h, λ_a, threshold)` using Poisson convolution.
-  - **Tests**: TEST-004, TEST-005.
+    - `MarketMarginals` frozen dataclass holding the 1X2 / O-U 2.5 / BTTS triples & pairs.
+    - `from_score_matrix(M) -> MarketMarginals`: renormalizes (drops truncated Poisson tail), then masks the joint via `np.indices` for `rows>cols / rows==cols / rows<cols` (1X2), `rows+cols > 2` (O/U 2.5), and `rows≥1 ∧ cols≥1` (BTTS). Rejects non-square / non-positive-mass inputs.
+    - `corner_total_prob_at_least(λ_h, λ_a, k)`: closed-form `poisson.sf(k-1, λ_h+λ_a)` exploiting Poisson sum-stability. Validates non-negative inputs.
+  - **Tests**: TEST-004 ✅, TEST-005 ✅, plus partition checks over a DC matrix + 25 random simplex matrices, a hand-computed direction check, truncated-tail renormalization, and input-validation. `uv run pytest tests/model/test_markets.py` → 9 passed in 1.51s; full suite `uv run pytest` → 49 passed in 83.65s.
   - **Depends on**: 4.1.
 
 ### Step 5: Odds ingestion + de-vig baseline [W3]
