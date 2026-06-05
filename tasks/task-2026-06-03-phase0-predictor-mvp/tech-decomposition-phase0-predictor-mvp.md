@@ -358,13 +358,13 @@ cd apps/ui && pnpm lint
   - **Depends on**: 4.1.
 
 ### Step 5: Odds ingestion + de-vig baseline [W3]
-- [ ] Sub-step 5.1: [REQ-012] the-odds-api client
-  - **Files / modules**: `apps/predictor/src/predictor/odds/the_odds_api.py`
+- [x] Sub-step 5.1: [REQ-012] the-odds-api client
+  - **Files / modules**: `apps/predictor/src/predictor/odds/the_odds_api.py`, `apps/predictor/tests/odds/test_the_odds_api.py`
   - **What changes**:
-    - Typed client for fixtures + odds endpoints.
-    - Writes snapshots to `odds_snapshots(match_id, book, market, outcome, decimal_odds, fetched_at)`.
-    - Env-driven API key, rate-limit aware.
-  - **Tests**: `respx`-mocked responses; idempotent write on duplicate snapshots.
+    - Typed `TheOddsApiClient` over `httpx` for `GET /v4/sports/{sport_key}/odds`; pydantic models for events/bookmakers/markets/outcomes; `OddsApiError` for non-2xx; quota headers (`x-requests-remaining` / `x-requests-used`) surfaced on the client; context-manager support.
+    - `persist_snapshots(session, events, *, fetched_at) -> SnapshotWriteResult` writes `odds_snapshots(match_id, book, market, outcome, decimal_odds, fetched_at)`. Outcome mapping: `h2h` → `home`/`draw`/`away` by team-name match; `totals` folds `point` into market label (`totals_2.5`) with `over`/`under`; `btts` → `yes`/`no`. Unmatched events surfaced in `events_unmatched` rather than raised. Natural-key pre-check makes re-write idempotent.
+    - API key sourced from `Settings.the_odds_api_key` (already wired in `config.py`).
+  - **Tests**: `uv run pytest tests/odds/ -x` — 9 PASS (`respx`-mocked h2h + totals flows from saved fixtures; quota headers; non-2xx → `OddsApiError`; idempotent re-write skips duplicates; totals point folded into `totals_2.5` label; unmatched event surfaced not raised; input validation on empty key/markets/regions).
   - **Depends on**: 2.1.
 
 - [ ] Sub-step 5.2: [REQ-006] De-vig
