@@ -30,7 +30,7 @@ Non-negotiable truths when this task is complete:
 - [ ] **Pass gate**: model Brier ≤ baseline Brier × 0.98 on ≥3 of {1X2, O/U 2.5, BTTS, corners} across the held-out tournaments combined. Report explicitly states pass/fail.
 - [ ] `the-odds-api` integration fetches odds snapshots for WC 2026 fixtures into `odds_snapshots`; scheduled job documented (manual cron / Task Scheduler).
 - [ ] 1xbet read-only scraper exists with explicit Cloudflare-detection branch; if blocked from local IP, scraper logs the block, raises a typed exception, and **does not fail the build**. Deferral note recorded in Phase 1 backlog.
-- [ ] FastAPI backend exposes `GET /fixtures`, `GET /matches/{id}`, `GET /matches/{id}/notes`, `POST /matches/{id}/predict` (triggers a fresh model run). OpenAPI schema served at `/openapi.json`.
+- [x] FastAPI backend exposes `GET /fixtures`, `GET /matches/{id}`, `GET /matches/{id}/notes`, `POST /matches/{id}/predict` (triggers a fresh model run). OpenAPI schema served at `/openapi.json`.
 - [ ] React UI: fixtures list page (filter by date / group) → per-match 3-panel view (stats / model output / Claude notes). Claude notes panel reflects `apps/predictor/claude_notes/<match_id>.json` content; UI subscribes via SSE and refreshes within 2s of file change.
 - [ ] `claude_notes/<match_id>.json` validated by Pydantic schema (`packages/schemas/`) with a typed discriminated union for `qualitative_deltas` (log-odds shift per market); Zod types auto-generated from OpenAPI for the UI; mismatched schemas cause UI to show a clear error per match, not a blank page.
 
@@ -114,19 +114,19 @@ Non-negotiable truths when this task is complete:
 #### Test Suite 5: API contracts
 **File**: `apps/predictor/tests/api/test_endpoints.py`
 
-- [ ] **TEST-008**: `GET /fixtures` returns scheduled WC 2026 matches sorted by kickoff
+- [x] **TEST-008**: `GET /fixtures` returns scheduled WC 2026 matches sorted by kickoff
   - **Covers**: `REQ-008`
   - **Given**: 3 fixtures seeded in SQLite with mixed kickoff times
   - **When**: `GET /fixtures` is called
   - **Then**: response is 200, body is a list of `Fixture` schemas in ascending kickoff order
 
-- [ ] **TEST-009**: `GET /matches/{id}/notes` returns parsed Claude note or 404 cleanly
+- [x] **TEST-009**: `GET /matches/{id}/notes` returns parsed Claude note or 404 cleanly
   - **Covers**: `REQ-009`
   - **Given**: `claude_notes/match-42.json` exists with valid schema; `match-43.json` does not exist
   - **When**: `/matches/42/notes` and `/matches/43/notes` are called
   - **Then**: first returns 200 with parsed structured note; second returns 404 with `{"detail": "no_note"}`
 
-- [ ] **TEST-010**: `GET /matches/{id}/notes` returns 422 for malformed Claude note
+- [x] **TEST-010**: `GET /matches/{id}/notes` returns 422 for malformed Claude note
   - **Covers**: `REQ-009`
   - **Given**: `claude_notes/match-44.json` exists but missing required field `confidence`
   - **When**: `/matches/44/notes` is called
@@ -407,12 +407,15 @@ cd apps/ui && pnpm lint
   - **Depends on**: 4.2, 5.2.
 
 ### Step 7: FastAPI backend + claude_notes ingest [W4]
-- [ ] Sub-step 7.1: [REQ-008] HTTP endpoints
-  - **Files / modules**: `apps/predictor/src/predictor/api/main.py`, `apps/predictor/src/predictor/api/routes/`, `packages/schemas/openapi.json`, `apps/ui/src/api/openapi.json` (symlink or build-step copy)
-  - **What changes**:
-    - Routes: `GET /fixtures`, `GET /matches/{id}`, `GET /matches/{id}/notes`, `POST /matches/{id}/predict` implementing the REQ-008 contract (cached → 200, enqueued fit → 202 with `model_run_id`).
-    - `make schemas` step: run FastAPI in schema-only mode, dump `app.openapi()` to `packages/schemas/openapi.json`, propagate into `apps/ui` for codegen. CI runs `make schemas` and diffs — any uncommitted change to OpenAPI fails the build (catches drift).
-  - **Tests**: TEST-008, TEST-009, TEST-010; contract test asserting cached vs enqueued semantics on `POST /predict`.
+- [x] Sub-step 7.1: [REQ-008] HTTP endpoints
+  - **Files / modules**: `apps/predictor/src/predictor/api/{main.py,schemas.py}`, `apps/predictor/src/predictor/api/routes/{fixtures,matches,notes,predict}.py`, `apps/predictor/scripts/dump_openapi.py`, `packages/schemas/openapi.json`, `apps/ui/src/api/openapi.json`, root `Makefile` (+ `schemas` target, `dev-api` fix), `scripts/ci.sh` (drift check).
+  - **What changed**:
+    - `create_app()` factory binds the current `Settings` to `app.state.settings` so tests can swap config via env + `reset_settings_for_tests()`.
+    - Routes implement REQ-008 contract: `GET /fixtures` (scheduled-only, sorted by kickoff), `GET /matches/{id}` (404 → `match_not_found`), `GET /matches/{id}/notes` (404 missing / 422 schema-invalid via `ValidationError.errors()`), `POST /matches/{id}/predict` (cached → 200 with `markets: {market: {outcome: prob}}`; enqueued → 202 with a fresh `ModelRun` row marked `running`; `force_refit=True` skips the cache).
+    - Pydantic `ClaudeNote` with discriminated-union `QualitativeDelta` (`market` literal) and `extra="forbid"` lives at `predictor.api.schemas` for now; Step 7.2 owns the move to `packages/schemas/src/claude_note.py`.
+    - `make schemas` runs `scripts/dump_openapi.py` which writes a stable sorted/indented `openapi.json` to both `packages/schemas/openapi.json` and `apps/ui/src/api/openapi.json`. `scripts/ci.sh` re-dumps + `git diff --exit-code`s the two files to catch drift.
+    - Fixed `make dev-api` (was pointing at `predictor.api.app:app`, now `predictor.api.main:app`).
+  - **Tests**: `tests/api/test_endpoints.py` — 10 cases covering TEST-008 (`/fixtures` shape + ordering + 404 on `/matches/{id}`), TEST-009 (note ingest: missing → 404, valid → 200 round-trip, invalid → 422 with structured errors), TEST-010 (note ingest happy + sad path also covered above), and the REQ-008 cached-vs-enqueued contract on `POST /predict` (cold → 202 + `ModelRun.status='running'`; warm → 200 with `markets` payload from cached `Prediction` rows; `force_refit=True` → 202 even when cache exists). `uv run pytest tests/api -q` → 10/10 PASS. Full suite `uv run pytest -q` → 110/110 PASS. `uv run mypy --strict src tests` clean. `uv run ruff check src tests` + `uv run ruff format --check src tests` clean. `uv run python scripts/dump_openapi.py` wrote both targets.
   - **Depends on**: 2.1, 4.2.
 
 - [ ] Sub-step 7.2: [REQ-009, REQ-011, REQ-014, REQ-015] Claude notes file watcher + SSE stream

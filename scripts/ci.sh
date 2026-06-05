@@ -21,6 +21,11 @@ step "mypy"
 step "pytest"
 ( cd apps/predictor && uv run pytest )
 
+# --- OpenAPI schema drift check ---
+step "openapi schema drift"
+( cd apps/predictor && uv run python scripts/dump_openapi.py )
+git diff --exit-code packages/schemas/openapi.json apps/ui/src/api/openapi.json
+
 # --- UI + schemas (pnpm workspaces) ---
 step "pnpm -r lint"
 pnpm -r lint

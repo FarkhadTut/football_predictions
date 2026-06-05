@@ -8,7 +8,7 @@
 SHELL := bash
 
 .PHONY: ci lint test typecheck py-lint py-test py-typecheck ui-lint ui-test ui-typecheck \
-        dev dev-api dev-ui smoke-live migrate seed probes install clean
+        dev dev-api dev-ui smoke-live migrate seed probes install clean schemas
 
 # ---- aggregate ----
 
@@ -49,7 +49,13 @@ ui-typecheck:
 # ---- dev loops ----
 
 dev-api:
-	cd apps/predictor && uv run uvicorn predictor.api.app:app --reload
+	cd apps/predictor && uv run uvicorn predictor.api.main:app --reload
+
+# Dump the FastAPI OpenAPI schema to packages/schemas/openapi.json and
+# propagate to apps/ui/src/api/openapi.json. CI diffs the committed file
+# against a fresh dump to catch schema drift.
+schemas:
+	cd apps/predictor && uv run python scripts/dump_openapi.py
 
 dev-ui:
 	pnpm --filter ui dev
