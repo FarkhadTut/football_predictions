@@ -379,15 +379,20 @@ cd apps/ui && pnpm lint
   - **Tests**: `uv run pytest tests/odds/test_devig.py -x` — 7 PASS. TEST-006 (Shin recovers true probs under 4% uniform overround within 0.5% and sums to 1.0); multiplicative recovers `(0.5, 0.3, 0.2)` exactly under 5% overround; Shin collapses to multiplicative when booksum=1; input-validation raises on length and `> 1.0`; DB helper averages two books (pinnacle 4% + paddypower 6%) within 0.5% of truth, skipping a partial-coverage book and ignoring stale `fetched_at` rows; multiplicative-method path recovers truth exactly; helper returns `None` when no snapshots exist.
   - **Depends on**: 5.1.
 
-- [ ] Sub-step 5.3: [REQ-013] 1xbet read-only scraper with Cloudflare branch
-  - **Files / modules**: `apps/predictor/src/predictor/odds/one_x_bet.py`, `apps/predictor/reports/scraper-status.md`
+- [x] Sub-step 5.3: [REQ-013] 1xbet read-only scraper with Cloudflare branch
+  - **Files / modules**: `apps/predictor/src/predictor/odds/one_x_bet.py`, `apps/predictor/tests/odds/test_one_x_bet.py`, `apps/predictor/tests/fixtures/one_x_bet/{match_full,match_no_btts,cloudflare_block}.html`
   - **What changes**:
-    - Attempt fetch with realistic browser headers via `httpx`.
-    - Detect Cloudflare challenge page; raise `CloudflareBlocked`.
-    - Parse h2h, totals, **BTTS, and corner totals** (decision #20: 1xbet is the only Phase 0 source for BTTS + corners).
-    - On `CloudflareBlocked`, persist a `MarketAvailability(market, reason="cloudflare_blocked")` row so the API layer (Step 7) can return an explicit "indicative — no book" flag for BTTS/corners EV.
-    - CLI: `uv run python -m predictor.odds.one_x_bet probe` writes status report.
-  - **Tests**: unit test with two recorded HTML samples (200 with full markets, 403 Cloudflare); a third sample missing the BTTS block exercises the partial-coverage path. No live HTTP in CI.
+    - **Plan A separation**: scraper is a pure parser + HTTP fetcher; DB writes for `MarketAvailability` are exposed as a helper for Step 7 to call, not done inside `probe`.
+    - `OneXBetClient(http_client=None, timeout=15.0)` — `httpx.Client` with `BROWSER_HEADERS` (Chrome UA, `Sec-Fetch-*`, `Accept-Language`), context-manager, `follow_redirects=True`.
+    - `fetch_match_markets(url)` → `ParsedMarkets`. Cloudflare branch fires on status `403`/`503` + `server: cloudflare` / `cf-mitigated` header OR body fingerprints (`challenge-platform`, `cf-chl`, `_cf_chl_opt`, `Just a moment...`). Non-CF 4xx/5xx → `OneXBetError`.
+    - `parse_markets_html(html)` extracts `<script id="__INITIAL_STATE__" type="application/json">…</script>` JSON island via regex, normalises to `OutcomeQuote(market, outcome, decimal_odds)`. Market label conventions match `OddsSnapshot.market`: `h2h` (`home`/`draw`/`away` from `W1`/`X`/`W2`), `totals_{line:g}` (`over`/`under`), `btts` (`yes`/`no`), `corners_{line:g}` (`over`/`under`). Unsupported markets silently dropped so partial coverage surfaces as an absence in `ParsedMarkets.markets_present()`.
+    - `record_market_availability(session, *, match_id, market, available, reason, observed_at)` → idempotent insert on the natural key `(match_id, market, observed_at)` (returns `None` if already present).
+    - CLI `python -m predictor.odds.one_x_bet probe --url … --out reports/scraper-status.md` — writes markdown report (`ok` / `cloudflare_blocked` / `error` outcome) without touching the DB. Does not raise on Cloudflare so CI probes don't fail the build.
+  - **Tests**: `uv run pytest tests/odds/test_one_x_bet.py -x` — 11 PASS.
+    - Parser: full-coverage fixture yields exactly `{h2h, totals_2.5, btts, corners_9.5}` with correct odds; partial-coverage fixture drops `btts` cleanly; CF-body fixture raises `CloudflareBlocked`; missing JSON island raises `OneXBetError` matching `__INITIAL_STATE__`.
+    - Client (respx-mocked, no live HTTP): 200 + full body → parsed markets; 403 + CF body + `server: cloudflare` → `CloudflareBlocked`; 404 → `OneXBetError` matching `status 404`.
+    - `record_market_availability`: alembic-up SQLite + seeded match. First call writes a `MarketAvailability(btts, available=False, reason="cloudflare_blocked")` row; second call with the same natural key is a no-op (`returns None`); table holds exactly one row.
+    - `probe`: ok report mentions teams + markets; CF report records `cloudflare_blocked`; missing-island report records `error` + `__INITIAL_STATE__`. All three write the file with the injected `observed_at` so no clock dependency.
   - **Depends on**: 5.1.
 
 ### Step 6: Walk-forward backtest + acceptance gate [W3]
