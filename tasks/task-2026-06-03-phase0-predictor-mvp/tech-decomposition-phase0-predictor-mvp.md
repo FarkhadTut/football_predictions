@@ -51,19 +51,19 @@ Non-negotiable truths when this task is complete:
 #### Test Suite 1: Dixon-Coles math
 **File**: `apps/predictor/tests/model/test_dixon_coles.py`
 
-- [ ] **TEST-001**: Likelihood gradient matches numerical gradient on synthetic data
+- [x] **TEST-001**: Likelihood gradient matches numerical gradient on synthetic data
   - **Covers**: `REQ-004`
   - **Given**: 200 synthetic matches generated from known α, β, γ, ρ parameters
   - **When**: analytical gradient of the DC log-likelihood is computed at a perturbed point
   - **Then**: agrees with finite-difference gradient within 1e-4
 
-- [ ] **TEST-002**: Fitting recovers known parameters within 5% on 5000 synthetic matches
+- [x] **TEST-002**: Fitting recovers known parameters within 5% on 5000 synthetic matches
   - **Covers**: `REQ-004`
   - **Given**: generative DC simulator seeded with `numpy.random.default_rng(42)`, fixed α, β, γ, ρ across 20 teams
   - **When**: `DixonColesModel.fit(matches, seed=42)` runs to convergence
   - **Then**: each team's recovered attack/defence strength is within 5% of truth (deterministic across runs)
 
-- [ ] **TEST-003**: Low-score rho correction shifts 0-0 / 1-0 / 0-1 / 1-1 probabilities the right direction
+- [x] **TEST-003**: Low-score rho correction shifts 0-0 / 1-0 / 0-1 / 1-1 probabilities the right direction
   - **Covers**: `REQ-004`
   - **Given**: fitted model with ρ = -0.1
   - **When**: scoreline matrix computed
@@ -335,13 +335,17 @@ cd apps/ui && pnpm lint
   - **Depends on**: 2.1.
 
 ### Step 4: Dixon-Coles model + market derivation [W3]
-- [ ] Sub-step 4.1: [REQ-004] DC fitter
-  - **Files / modules**: `apps/predictor/src/predictor/model/dixon_coles.py`
+- [x] Sub-step 4.1: [REQ-004] DC fitter
+  - **Files / modules**: `apps/predictor/src/predictor/model/dixon_coles.py`, `apps/predictor/tests/model/test_dixon_coles.py`
   - **What changes**:
-    - `DixonColesModel` with `.fit(matches: pd.DataFrame)`, `.predict(home, away) -> ScoreMatrix`.
-    - Time-weighted log-likelihood (exponential decay, half-life parameter exposed).
-    - L-BFGS-B optimization via scipy with analytical gradient where tractable.
-  - **Tests**: TEST-001, TEST-002, TEST-003.
+    - `DixonColesModel` with `.fit(matches: pd.DataFrame)`, `.predict(home, away) -> ScoreMatrix`, `.predict_lambdas`.
+    - `DixonColesParams` frozen dataclass (teams + α / δ / γ / ρ) with mean-zero α/δ identifiability post-fit (α_0 held at 0 during opt; γ absorbs the re-centering shift).
+    - Time-weighted log-likelihood (`2^(-Δdays / half_life_days)`; `half_life_days=None` → uniform).
+    - L-BFGS-B via `scipy.optimize.minimize` with **analytical gradient** (Poisson piece `(x − λ)` per match scattered through `np.add.at` to α/δ; τ-correction partials applied on the four low-score masks).
+    - Public `tau_correction(x, y, λ, μ, ρ)` vectorized broadcast helper.
+    - `pyproject.toml`: pandas added to mypy `ignore_missing_imports`; ruff `RUF001/RUF002/RUF003` ignored for `model/` files so Greek mathematical notation (α/β/γ/δ/λ/μ/ρ/τ) is permitted in docstrings.
+  - **Tests**: TEST-001 ✅, TEST-002 ✅, TEST-003 ✅. `uv run pytest tests/model/test_dixon_coles.py` → 3 passed in 2.64s; full suite `uv run pytest` → 40 passed in 67.74s.
+  - **Decision deviation**: TEST-003 spec text had the ρ-correction direction reversed. Canonical Dixon & Coles (1997) convention has τ(0,0)=1−λμρ, τ(1,1)=1−ρ, so for empirically-fit ρ < 0 the (0,0) and (1,1) draw cells **rise** while (1,0) and (0,1) narrow-win cells **fall** — the implementation follows this convention and the test asserts in that direction with a comment cross-referencing the spec deviation.
   - **Depends on**: 1.1.
 
 - [ ] Sub-step 4.2: [REQ-005] Markets from score matrix
