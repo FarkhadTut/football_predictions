@@ -367,12 +367,16 @@ cd apps/ui && pnpm lint
   - **Tests**: `uv run pytest tests/odds/ -x` — 9 PASS (`respx`-mocked h2h + totals flows from saved fixtures; quota headers; non-2xx → `OddsApiError`; idempotent re-write skips duplicates; totals point folded into `totals_2.5` label; unmatched event surfaced not raised; input validation on empty key/markets/regions).
   - **Depends on**: 2.1.
 
-- [ ] Sub-step 5.2: [REQ-006] De-vig
-  - **Files / modules**: `apps/predictor/src/predictor/odds/devig.py`
+- [x] Sub-step 5.2: [REQ-006] De-vig
+  - **Files / modules**: `apps/predictor/src/predictor/odds/devig.py`, `apps/predictor/tests/odds/test_devig.py`
   - **What changes**:
-    - `shin(book_odds)` and `multiplicative(book_odds)` returning fair probabilities.
-    - Helper to compute implied baseline per market per match from latest snapshot.
-  - **Tests**: TEST-006.
+    - `multiplicative(book_odds)` — closed-form `π_i = b_i / Σ b_i`. Exact recovery for uniform overround.
+    - `shin(book_odds)` — Shin (1992) model, solves `Σπ_i(z) − 1 = 0` for `z ∈ [0, 1)` via `scipy.optimize.brentq`. Booksum ≤ 1+tol short-circuits to multiplicative; extreme-overround branch (residual at z≈1 still positive) falls back to multiplicative as the most conservative output. Final tiny re-normalisation guarantees an exact partition.
+    - `_implied()` validates 1-D length ≥ 2 and decimal odds > 1.0.
+    - `FairProbabilities` frozen dataclass: `{market, fair_by_outcome, books_used}`.
+    - `_latest_snapshot_per_book(session, match_id, market)` orders `odds_snapshots` by `fetched_at DESC` and keeps only the newest `fetched_at` per book.
+    - `fair_probabilities_for_match(session, *, match_id, market, method="shin")`: pulls latest snapshot per book, skips books with partial outcome coverage, de-vigs each remaining book, and averages fair probabilities across them. Returns `None` if no book has a complete quote.
+  - **Tests**: `uv run pytest tests/odds/test_devig.py -x` — 7 PASS. TEST-006 (Shin recovers true probs under 4% uniform overround within 0.5% and sums to 1.0); multiplicative recovers `(0.5, 0.3, 0.2)` exactly under 5% overround; Shin collapses to multiplicative when booksum=1; input-validation raises on length and `> 1.0`; DB helper averages two books (pinnacle 4% + paddypower 6%) within 0.5% of truth, skipping a partial-coverage book and ignoring stale `fetched_at` rows; multiplicative-method path recovers truth exactly; helper returns `None` when no snapshots exist.
   - **Depends on**: 5.1.
 
 - [ ] Sub-step 5.3: [REQ-013] 1xbet read-only scraper with Cloudflare branch
