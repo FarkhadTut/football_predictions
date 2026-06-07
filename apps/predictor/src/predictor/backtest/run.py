@@ -430,7 +430,7 @@ def _main(argv: Sequence[str] | None = None) -> int:
     # Lazy import — keeps unit tests of aggregate/render free of DB deps.
     # The dataset adapter wires this CLI to the ingest tables; it lives in a
     # separate module so the pure aggregator stays test-isolated.
-    from predictor.backtest.dataset import (  # type: ignore[import-untyped]
+    from predictor.backtest.dataset import (
         load_test_matches,
         load_training_matches,
     )
