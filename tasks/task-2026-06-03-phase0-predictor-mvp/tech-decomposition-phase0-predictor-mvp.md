@@ -442,13 +442,19 @@ cd apps/ui && pnpm lint
   - **Depends on**: 7.2.
 
 ### Step 8: React UI [W4]
-- [ ] Sub-step 8.1: [REQ-010] Codegen + API client
+- [x] Sub-step 8.1: [REQ-010] Codegen + API client
   - **Files / modules**: `apps/ui/src/api/`, `apps/ui/scripts/codegen.ts`
   - **What changes**:
     - `pnpm codegen` runs `openapi-typescript` against `packages/schemas/openapi.json` → `apps/ui/src/api/types.gen.ts`.
     - Thin fetch client wrapped in `@tanstack/react-query`.
   - **Tests**: type-level — UI fails typecheck if a route signature drifts.
   - **Depends on**: 7.1.
+  - **Done (commit 09c0bec)**:
+    - `apps/ui/src/api/client.ts` — `ApiClient` with `listFixtures`, `getMatch`, `getMatchNote`, `predict`, `notesEventsUrl`; `ApiError` carries status + parsed body; `isCachedPrediction` type guard discriminates on `cached`.
+    - `apps/ui/src/api/queries.ts` — `useFixtures`, `useMatch`, `useMatchNote`, `usePredictMutation`; shared `queryKeys` factory so 8.3's SSE handler can invalidate without drift.
+    - `apps/ui/src/main.tsx` — wraps `<App />` in `QueryClientProvider` (`staleTime: 30_000`, `retry: 1`).
+    - Tests: 5 client cases + 2 hook cases — URL shape, POST body encoding, ApiError on 404, hook delegation and error surfacing.
+    - `tsconfig.json` gains `vite/client` types for `import.meta.env`; ESLint disables `no-undef` (TS already covers it, was flagging DOM types like `RequestInit`).
 
 - [ ] Sub-step 8.2: [REQ-010] Fixtures list page
   - **Files / modules**: `apps/ui/src/pages/Fixtures.tsx`
