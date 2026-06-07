@@ -456,13 +456,18 @@ cd apps/ui && pnpm lint
     - Tests: 5 client cases + 2 hook cases — URL shape, POST body encoding, ApiError on 404, hook delegation and error surfacing.
     - `tsconfig.json` gains `vite/client` types for `import.meta.env`; ESLint disables `no-undef` (TS already covers it, was flagging DOM types like `RequestInit`).
 
-- [ ] Sub-step 8.2: [REQ-010] Fixtures list page
+- [x] Sub-step 8.2: [REQ-010] Fixtures list page
   - **Files / modules**: `apps/ui/src/pages/Fixtures.tsx`
   - **What changes**:
     - List of upcoming fixtures grouped by date.
     - Click → navigate to `/matches/:id`.
   - **Tests**: component test rendering with mocked react-query data.
   - **Depends on**: 8.1.
+  - **Done (commit pending)**:
+    - `apps/ui/src/pages/Fixtures.tsx` — `useFixtures()` → sort by `kickoff_utc` → group under per-day `<article>` sections; each row links to `/matches/:id` with `home_team vs away_team` and a `HH:MM UTC` label. Renders loading / error / empty states explicitly.
+    - `apps/ui/src/App.tsx` — `<Routes>` with `/` → Fixtures and `/matches/:matchId` → placeholder section (8.3 replaces).
+    - `apps/ui/src/main.tsx` — `BrowserRouter` wraps `App` under the existing `QueryClientProvider`.
+    - Tests: 3 cases in `Fixtures.test.tsx` (empty, grouping + chronological sort + link targets, error alert) + 2 routing cases in `App.test.tsx`.
 
 - [ ] Sub-step 8.3: [REQ-010, REQ-011] Match page (3-panel)
   - **Files / modules**: `apps/ui/src/pages/Match.tsx`, `apps/ui/src/components/panels/{Stats,Model,ClaudeNote}.tsx`, `apps/ui/src/hooks/useNotesStream.ts`
