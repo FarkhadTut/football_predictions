@@ -17,6 +17,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from predictor.api.notes_watcher import NotesEventBroker, watch_notes
 from predictor.api.routes import fixtures, matches, notes, predict
@@ -50,6 +51,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = resolved
+    # CORS: the UI runs on a different origin (Vite dev → :5173, prod → its
+    # own host) and uses `fetch` + `EventSource`. Without this middleware the
+    # browser silently drops responses even though uvicorn returns them.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(resolved.cors_allow_origins),
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+        allow_credentials=False,
+    )
     app.include_router(fixtures.router)
     app.include_router(matches.router)
     app.include_router(notes.router)

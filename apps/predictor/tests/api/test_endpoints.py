@@ -350,3 +350,22 @@ def test_get_match_returns_match_detail(client: TestClient) -> None:
 def test_get_match_returns_404_for_unknown_id(client: TestClient) -> None:
     resp = client.get("/matches/9999")
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# CORS — Vite dev origin must be allowed (browser at :5173 → API at :8000)
+# ---------------------------------------------------------------------------
+
+
+def test_cors_allows_vite_dev_origin(client: TestClient) -> None:
+    resp = client.get("/fixtures", headers={"Origin": "http://127.0.0.1:5173"})
+    assert resp.status_code == 200
+    assert resp.headers.get("access-control-allow-origin") == "http://127.0.0.1:5173"
+
+
+def test_cors_rejects_unknown_origin(client: TestClient) -> None:
+    resp = client.get("/fixtures", headers={"Origin": "http://evil.example"})
+    assert resp.status_code == 200
+    # Starlette's CORSMiddleware omits the header for disallowed origins, which
+    # is exactly what tells the browser to block the response.
+    assert "access-control-allow-origin" not in resp.headers

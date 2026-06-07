@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     )
     log_level: str = Field(default="INFO")
     the_odds_api_key: str | None = Field(default=None, alias="THE_ODDS_API_KEY")
+    cors_allow_origins: tuple[str, ...] = Field(
+        default=("http://127.0.0.1:5173", "http://localhost:5173"),
+        description=(
+            "Origins allowed to call the API from a browser. Defaults cover the "
+            "Vite dev server; override via PREDICTOR_CORS_ALLOW_ORIGINS for "
+            "deployed environments."
+        ),
+    )
 
 
 _settings: Settings | None = None
