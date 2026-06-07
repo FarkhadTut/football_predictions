@@ -27,6 +27,8 @@ export default [
       "react-refresh/only-export-components": "warn",
       "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      // TS already enforces declared identifiers; no-undef flags DOM types like RequestInit.
+      "no-undef": "off",
     },
   },
 ];

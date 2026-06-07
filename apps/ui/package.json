@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --reporter=dot"
+    "test": "vitest run --reporter=dot",
+    "codegen": "openapi-typescript ../../packages/schemas/openapi.json -o ./src/api/types.gen.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.59.0",
