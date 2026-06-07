@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
-import { apiClient } from "./api/client";
+import { ApiError, apiClient } from "./api/client";
 
 function renderAt(path: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -30,8 +30,18 @@ describe("App routing", () => {
     );
   });
 
-  it("renders the match placeholder at /matches/:id", () => {
+  it("renders the match page at /matches/:id", async () => {
+    vi.spyOn(apiClient, "getMatch").mockResolvedValue({
+      id: 42,
+      competition: "WC",
+      season: "2026",
+      home_team: "BRA",
+      away_team: "ARG",
+      kickoff_utc: "2026-06-11T12:00:00Z",
+      status: "scheduled",
+    });
+    vi.spyOn(apiClient, "getMatchNote").mockRejectedValue(new ApiError(404, null, "not found"));
     renderAt("/matches/42");
-    expect(screen.getByRole("heading", { level: 1, name: /match/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: /match #42/i })).toBeInTheDocument();
   });
 });
