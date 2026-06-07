@@ -412,6 +412,22 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/events/notes": {
+      "get": {
+        "operationId": "stream_notes_events_notes_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Stream Notes"
+      }
+    },
     "/fixtures": {
       "get": {
         "description": "Return all scheduled matches sorted by ``kickoff_utc`` ascending.",

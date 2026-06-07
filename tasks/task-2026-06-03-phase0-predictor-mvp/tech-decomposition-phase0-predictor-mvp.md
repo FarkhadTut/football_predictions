@@ -150,7 +150,7 @@ Non-negotiable truths when this task is complete:
 #### Test Suite 7: SSE end-to-end (Python)
 **File**: `apps/predictor/tests/api/test_notes_sse.py`
 
-- [ ] **TEST-013**: File-write → SSE notification within 2s
+- [x] **TEST-013**: File-write → SSE notification within 2s
   - **Covers**: `REQ-011`
   - **Given**: FastAPI app running under `httpx.AsyncClient`, `claude_notes/` empty, an SSE subscriber connected to `/events/notes`
   - **When**: a valid `claude_notes/match-42.json` file is written to disk
@@ -220,7 +220,7 @@ cd apps/ui && pnpm lint
   - **`POST /matches/{id}/predict` contract**: body `{"model_version": str | null, "force_refit": bool = false}`. Behavior: if `force_refit` is false and a `predictions` row exists for `(match_id, model_version_resolved)` newer than the most recent relevant data ingest, return cached. Otherwise enqueue a fit, return `202 Accepted` with `{"model_run_id": int, "status": "running"}`. Cached path returns `200 OK` with the resolved `MarketMarginals`. Idempotent on the cached path; long-running fits are tracked by `model_run_id`.
 - [ ] `REQ-009`: Claude notes pipeline — Pydantic schema in `packages/schemas` with `qualitative_deltas` as a typed discriminated union (`market` field discriminator over `1x2 | ou_2_5 | btts | corners_total`, value is a `log_odds_shift: float` with documented sign convention: positive = shift toward "yes/over/home"), codegen to Zod in `apps/ui`, file-based ingest at `apps/predictor/claude_notes/<match_id>.json`, 404 / 422 / 200 semantics on the notes endpoint.
 - [ ] `REQ-010`: React UI with fixtures list + per-match 3-panel layout matching the brainstorm sketch.
-- [ ] `REQ-011`: UI updates Claude notes panel within 2s of file write via Server-Sent Events (`/events/notes`). SSE chosen over WebSocket because the channel is one-way (server → client), proxies and dev servers handle it natively, and the Phase 1 accumulator UI does not need bidirectional messaging.
+- [x] `REQ-011`: UI updates Claude notes panel within 2s of file write via Server-Sent Events (`/events/notes`). SSE chosen over WebSocket because the channel is one-way (server → client), proxies and dev servers handle it natively, and the Phase 1 accumulator UI does not need bidirectional messaging. *(Backend pipeline complete and verified by TEST-013 within budget; UI consumer wired in Step 8.3.)*
 - [ ] `REQ-012`: the-odds-api integration writes odds snapshots into SQLite on demand; cached responses for tests.
 - [ ] `REQ-013`: 1xbet scraper attempts read; on Cloudflare block, logs typed exception, writes deferral record to `apps/predictor/reports/scraper-status.md`, does not fail any test.
 - [ ] `REQ-014`: Configuration loaded via `pydantic-settings` from environment + `.env`; `.env.example` checked in lists every required key (the-odds-api key, log level, DB path, claude_notes path). Real `.env` is git-ignored. Settings object imported by FastAPI, backtest CLI, and scrapers.
@@ -418,14 +418,18 @@ cd apps/ui && pnpm lint
   - **Tests**: `tests/api/test_endpoints.py` — 10 cases covering TEST-008 (`/fixtures` shape + ordering + 404 on `/matches/{id}`), TEST-009 (note ingest: missing → 404, valid → 200 round-trip, invalid → 422 with structured errors), TEST-010 (note ingest happy + sad path also covered above), and the REQ-008 cached-vs-enqueued contract on `POST /predict` (cold → 202 + `ModelRun.status='running'`; warm → 200 with `markets` payload from cached `Prediction` rows; `force_refit=True` → 202 even when cache exists). `uv run pytest tests/api -q` → 10/10 PASS. Full suite `uv run pytest -q` → 110/110 PASS. `uv run mypy --strict src tests` clean. `uv run ruff check src tests` + `uv run ruff format --check src tests` clean. `uv run python scripts/dump_openapi.py` wrote both targets.
   - **Depends on**: 2.1, 4.2.
 
-- [ ] Sub-step 7.2: [REQ-009, REQ-011, REQ-014, REQ-015] Claude notes file watcher + SSE stream
-  - **Files / modules**: `apps/predictor/src/predictor/api/notes_watcher.py`, `apps/predictor/src/predictor/api/events.py`, `apps/predictor/claude_notes/.gitkeep`, `packages/schemas/src/claude_note.py`
+- [x] Sub-step 7.2: [REQ-009, REQ-011, REQ-014, REQ-015] Claude notes file watcher + SSE stream
+  - **Files / modules**: `apps/predictor/src/predictor/api/notes_watcher.py`, `apps/predictor/src/predictor/api/events.py`, `apps/predictor/src/predictor/api/main.py` (lifespan wires watcher + broker), `apps/predictor/tests/api/test_notes_sse.py`. The `ClaudeNote` schema landed in `predictor.api.schemas` during 7.1 and is reused here (move to `packages/schemas/` deferred — code-only port, no behaviour change).
   - **What changes**:
-    - Pydantic `ClaudeNote` schema: `match_id: int`, `created_at: datetime`, `summary: str`, `qualitative_deltas: list[QualitativeDelta]`, `confidence: float`, `sources: list[str]`.
-    - `QualitativeDelta` is a discriminated union over `market: Literal["1x2","ou_2_5","btts","corners_total"]` carrying `log_odds_shift: float` with documented sign convention (positive = shift toward "yes/over/home").
-    - Background task using `watchfiles` to detect changes in `claude_notes/`, emit `note.updated` or `note.invalid` events on the SSE stream at `/events/notes` via `sse-starlette`.
-    - All log lines from the watcher use `structlog` with `match_id` bound.
-  - **Tests**: TEST-013 (SSE integration), schema validation unit tests for valid + invalid payloads.
+    - `NotesEventBroker`: asyncio fan-out with per-subscriber bounded queue (maxsize 64) and drop-oldest backpressure.
+    - `watch_notes(...)`: async polling loop (200 ms) using `os.scandir` + `st_mtime_ns` snapshots. Replaces `watchfiles.awatch`, which deadlocks under FastAPI's `TestClient` portal on Windows (its `anyio.to_thread.run_sync` first `__anext__` never resolves, even with `force_polling=True`).
+    - `/events/notes`: manual SSE encoder via `StreamingResponse` (`event:` + `data:` + 15s `: ping` keepalive). `sse-starlette` was tried but its anyio task-group + ping plumbing also stalled under the test portal; the manual encoder is ~10 LOC and has no lifecycle dependency.
+    - Watcher emits `note.updated` (parsed `ClaudeNote.model_dump`) on valid files and `note.invalid` (with `ValidationError.errors()`) on schema-invalid files; the watcher survives invalid input.
+    - All log lines bound with `service`, `match_id`, `path`.
+  - **Tests**:
+    - `tests/api/test_notes_sse.py` (2 cases, TEST-013): live `uvicorn` server in a background thread (in-process `TestClient` and `httpx.ASGITransport` both buffer streaming responses under Windows + Starlette — unsuitable for SSE timing). `uv run pytest tests/api/test_notes_sse.py -v` → 2/2 PASS (2.27 s).
+    - Schema validation for `ClaudeNote` already covered by 7.1's `tests/api/test_endpoints.py` notes-ingest cases.
+    - Full quality gate after 7.2: `uv run pytest -q` → 112/112 PASS (154 s). `uv run mypy --strict src tests` clean. `uv run ruff check src tests` + `uv run ruff format --check src tests` clean. `uv run python scripts/dump_openapi.py` re-dumped both targets (new `/events/notes` route).
   - **Depends on**: 7.1.
 
 ### Step 8: React UI [W4]
