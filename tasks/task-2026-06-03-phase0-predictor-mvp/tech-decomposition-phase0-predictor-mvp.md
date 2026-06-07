@@ -469,7 +469,7 @@ cd apps/ui && pnpm lint
     - `apps/ui/src/main.tsx` — `BrowserRouter` wraps `App` under the existing `QueryClientProvider`.
     - Tests: 3 cases in `Fixtures.test.tsx` (empty, grouping + chronological sort + link targets, error alert) + 2 routing cases in `App.test.tsx`.
 
-- [ ] Sub-step 8.3: [REQ-010, REQ-011] Match page (3-panel)
+- [x] Sub-step 8.3: [REQ-010, REQ-011] Match page (3-panel)
   - **Files / modules**: `apps/ui/src/pages/Match.tsx`, `apps/ui/src/components/panels/{Stats,Model,ClaudeNote}.tsx`, `apps/ui/src/hooks/useNotesStream.ts`
   - **What changes**:
     - Layout matches the brainstorm sketch.
@@ -477,6 +477,14 @@ cd apps/ui && pnpm lint
     - Empty/loading/error states for each panel.
   - **Tests**: TEST-011, TEST-012; mocked `EventSource` test for the hook.
   - **Depends on**: 8.1, 7.2.
+  - **Done (commit pending)**:
+    - `apps/ui/src/pages/Match.tsx` — guards non-numeric `:matchId` with `role="alert"`; renders 3-panel `<div role="group" aria-label="match panels">` with Stats / Model / Claude. 404 on `getMatchNote` is coerced to `null` (via `isMissingNoteError`) so the panel shows the spec-mandated "Awaiting Claude analysis…" placeholder rather than an error. `useMatchNote` flips to a 10s `refetchInterval` when `useNotesStream` reports `connected === false`.
+    - `apps/ui/src/components/panels/Stats.tsx` — `<dl>` for competition / teams / kickoff / status; optional final-score row when `home_goals` is set.
+    - `apps/ui/src/components/panels/Model.tsx` — "Run prediction" button → `usePredictMutation({ force_refit: false })`; discriminated-union switch on `isCachedPrediction(result)` (cached → markets as percentages, enqueued → "fit enqueued (run #N)").
+    - `apps/ui/src/components/panels/ClaudeNote.tsx` — renders summary, confidence%, qualitative_deltas with signed `Δlog-odds` formatting, sources list; placeholder shown when `!isLoading && !error && !note`; status indicator switches between "live" and "polling".
+    - `apps/ui/src/hooks/useNotesStream.ts` — `useEffect` opens `EventSource` to `apiClient.notesEventsUrl()`, tracks `connected` via `open`/`error`, writes matching `note.updated` payloads to `queryKeys.matchNote(matchId)` via `queryClient.setQueryData`, forwards `note.invalid` to `onInvalid`, closes the source on unmount. `EventSourceCtor` is injectable for tests; in jsdom (no native `EventSource`) the effect is a no-op.
+    - `apps/ui/src/App.tsx` — `/matches/:matchId` route swapped from placeholder to `<Match />`.
+    - Tests: `Match.test.tsx` (TEST-011 panels-with-stub-data, TEST-012 404 → placeholder, invalid id alert), `useNotesStream.test.tsx` (cache write, match-id filtering, connected state, `onInvalid` forwarding, unmount closes source), updated `App.test.tsx` to mock the `getMatchNote` 404 via `ApiError`. All 20 vitest cases green; `pnpm typecheck` + `pnpm lint` clean.
 
 ---
 
