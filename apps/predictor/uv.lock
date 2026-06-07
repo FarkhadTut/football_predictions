@@ -681,6 +681,7 @@ dependencies = [
     { name = "httpx" },
     { name = "numpy" },
     { name = "pandas" },
+    { name = "predictor-schemas" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
@@ -710,6 +711,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "numpy", specifier = ">=2.1" },
     { name = "pandas", specifier = ">=2.2" },
+    { name = "predictor-schemas", editable = "../../packages/schemas" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "python-dotenv", specifier = ">=1.0" },
@@ -731,6 +733,17 @@ dev = [
     { name = "ruff", specifier = ">=0.7" },
     { name = "types-requests" },
 ]
+
+[[package]]
+name = "predictor-schemas"
+version = "0.1.0"
+source = { editable = "../../packages/schemas" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = ">=2.9" }]
 
 [[package]]
 name = "psutil"

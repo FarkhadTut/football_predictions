@@ -412,14 +412,14 @@ cd apps/ui && pnpm lint
   - **What changed**:
     - `create_app()` factory binds the current `Settings` to `app.state.settings` so tests can swap config via env + `reset_settings_for_tests()`.
     - Routes implement REQ-008 contract: `GET /fixtures` (scheduled-only, sorted by kickoff), `GET /matches/{id}` (404 → `match_not_found`), `GET /matches/{id}/notes` (404 missing / 422 schema-invalid via `ValidationError.errors()`), `POST /matches/{id}/predict` (cached → 200 with `markets: {market: {outcome: prob}}`; enqueued → 202 with a fresh `ModelRun` row marked `running`; `force_refit=True` skips the cache).
-    - Pydantic `ClaudeNote` with discriminated-union `QualitativeDelta` (`market` literal) and `extra="forbid"` lives at `predictor.api.schemas` for now; Step 7.2 owns the move to `packages/schemas/src/claude_note.py`.
+    - Pydantic `ClaudeNote` with discriminated-union `QualitativeDelta` (`market` literal) and `extra="forbid"` initially landed at `predictor.api.schemas`; Step 7.3 moved it to `packages/schemas/src/predictor_schemas/claude_note.py` and `predictor.api.schemas` now re-exports.
     - `make schemas` runs `scripts/dump_openapi.py` which writes a stable sorted/indented `openapi.json` to both `packages/schemas/openapi.json` and `apps/ui/src/api/openapi.json`. `scripts/ci.sh` re-dumps + `git diff --exit-code`s the two files to catch drift.
     - Fixed `make dev-api` (was pointing at `predictor.api.app:app`, now `predictor.api.main:app`).
   - **Tests**: `tests/api/test_endpoints.py` — 10 cases covering TEST-008 (`/fixtures` shape + ordering + 404 on `/matches/{id}`), TEST-009 (note ingest: missing → 404, valid → 200 round-trip, invalid → 422 with structured errors), TEST-010 (note ingest happy + sad path also covered above), and the REQ-008 cached-vs-enqueued contract on `POST /predict` (cold → 202 + `ModelRun.status='running'`; warm → 200 with `markets` payload from cached `Prediction` rows; `force_refit=True` → 202 even when cache exists). `uv run pytest tests/api -q` → 10/10 PASS. Full suite `uv run pytest -q` → 110/110 PASS. `uv run mypy --strict src tests` clean. `uv run ruff check src tests` + `uv run ruff format --check src tests` clean. `uv run python scripts/dump_openapi.py` wrote both targets.
   - **Depends on**: 2.1, 4.2.
 
 - [x] Sub-step 7.2: [REQ-009, REQ-011, REQ-014, REQ-015] Claude notes file watcher + SSE stream
-  - **Files / modules**: `apps/predictor/src/predictor/api/notes_watcher.py`, `apps/predictor/src/predictor/api/events.py`, `apps/predictor/src/predictor/api/main.py` (lifespan wires watcher + broker), `apps/predictor/tests/api/test_notes_sse.py`. The `ClaudeNote` schema landed in `predictor.api.schemas` during 7.1 and is reused here (move to `packages/schemas/` deferred — code-only port, no behaviour change).
+  - **Files / modules**: `apps/predictor/src/predictor/api/notes_watcher.py`, `apps/predictor/src/predictor/api/events.py`, `apps/predictor/src/predictor/api/main.py` (lifespan wires watcher + broker), `apps/predictor/tests/api/test_notes_sse.py`. The `ClaudeNote` schema landed in `predictor.api.schemas` during 7.1 and is reused here (canonical home moved to `packages/schemas` in Step 7.3 — code-only port, no behaviour change).
   - **What changes**:
     - `NotesEventBroker`: asyncio fan-out with per-subscriber bounded queue (maxsize 64) and drop-oldest backpressure.
     - `watch_notes(...)`: async polling loop (200 ms) using `os.scandir` + `st_mtime_ns` snapshots. Replaces `watchfiles.awatch`, which deadlocks under FastAPI's `TestClient` portal on Windows (its `anyio.to_thread.run_sync` first `__anext__` never resolves, even with `force_polling=True`).
@@ -431,6 +431,15 @@ cd apps/ui && pnpm lint
     - Schema validation for `ClaudeNote` already covered by 7.1's `tests/api/test_endpoints.py` notes-ingest cases.
     - Full quality gate after 7.2: `uv run pytest -q` → 112/112 PASS (154 s). `uv run mypy --strict src tests` clean. `uv run ruff check src tests` + `uv run ruff format --check src tests` clean. `uv run python scripts/dump_openapi.py` re-dumped both targets (new `/events/notes` route).
   - **Depends on**: 7.1.
+
+- [x] Sub-step 7.3: [REQ-009] Promote `ClaudeNote` schema to `packages/schemas`
+  - **Files / modules**: `packages/schemas/pyproject.toml` (new `predictor-schemas` Python distribution), `packages/schemas/src/predictor_schemas/{__init__.py,claude_note.py,py.typed}`, `apps/predictor/pyproject.toml` (path-source dep via `[tool.uv.sources]`), `apps/predictor/src/predictor/api/schemas.py` (now re-exports from `predictor_schemas`).
+  - **What changes**:
+    - `ClaudeNote`, `QualitativeDelta`, and the four per-market `Delta*` models move out of `predictor.api.schemas` into the new `predictor_schemas.claude_note` module. A `py.typed` marker makes the package mypy-strict friendly.
+    - `apps/predictor` consumes the package as an editable path-source dep so monorepo `uv sync` continues to work without publishing. The TS side is unchanged — Zod still generates from the OpenAPI dump.
+    - `predictor.api.schemas` keeps the same public symbols via `__all__` re-export, so call sites (routes, notes watcher, tests) don't change.
+  - **Tests**: no new tests — schema semantics and JSON serialisation are unchanged, covered by the existing 7.1 notes-ingest + 7.2 SSE cases. Full suite `uv run pytest -q` → 112/112 PASS. `uv run mypy --strict src` clean. `uv run ruff check src tests` + `uv run ruff format --check src tests` clean. `uv run python scripts/dump_openapi.py` re-dumped both targets (only delta is a `ClaudeNote.description` change because the docstring was tightened).
+  - **Depends on**: 7.2.
 
 ### Step 8: React UI [W4]
 - [ ] Sub-step 8.1: [REQ-010] Codegen + API client

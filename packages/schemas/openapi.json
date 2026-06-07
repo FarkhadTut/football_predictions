@@ -3,7 +3,7 @@
     "schemas": {
       "ClaudeNote": {
         "additionalProperties": false,
-        "description": "Structured qualitative note authored by Claude.\n\nFile-based ingest: callers write ``<notes_dir>/match-<id>.json`` and the\nAPI parses it via :meth:`model_validate_json` on read.",
+        "description": "Structured qualitative note authored by Claude.",
         "properties": {
           "confidence": {
             "maximum": 1.0,

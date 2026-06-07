@@ -19,7 +19,11 @@ dependencies = [
     "httpx>=0.27",
     "watchfiles>=0.24",
     "python-dotenv>=1.0",
+    "predictor-schemas",
 ]
+
+[tool.uv.sources]
+predictor-schemas = { path = "../../packages/schemas", editable = true }
 
 [dependency-groups]
 dev = [
