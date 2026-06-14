@@ -41,7 +41,10 @@ The decomposition told us to escalate before writing the corners code path if `c
 > via a browser-render + offline-cache loader (`predictor.odds.oddsportal`). Coverage:
 > 1X2 for WC 2018, Euro 2016/2020/2024. **Not** available: WC 2014 (OddsPortal gates
 > odds >~12y behind login), WC 2022 (no FBref results loaded), corners (no source).
-> O/U 2.5 + BTTS odds are pending (M2 — per-match detail pages). See
+> **O/U 2.5 + BTTS are deferred to Phase 1**: OddsPortal serves only 1X2 to
+> anonymous users — the O/U/BTTS sub-market tabs redirect logged-out users back
+> to 1X2, so those book odds need a logged-in session. The backtest uses its
+> empirical-rate fallback for them meanwhile. See
 > `tasks/plans/steady-swinging-pine.md`.
 
 **Recommendation**: keep BTTS and corners marginals in the model + UI (model output panel shows them with an "indicative — no book" badge), drop EV computation for those two markets in Phase 0, revisit in Phase 1 when 1xbet HTML scraper matures.

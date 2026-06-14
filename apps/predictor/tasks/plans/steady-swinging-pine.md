@@ -101,8 +101,14 @@ Add to `config.Settings` (`src/predictor/config.py:18`):
   results *list* pages (~tens of renders). Run backtest → confirm real 1x2 baseline numbers and
   that fuzzy matching covers ~all 283 matches (check `unmatched`). This de-risks matching before
   ~560 detail renders.
-- **M2 — add ou_2_5 + btts.** parse_over_under + parse_btts; source.py renders each match's
-  detail sub-tabs (cached). Populate `totals_2.5` + `btts`. Re-run backtest → full 3-market gate.
+- **M2 — add ou_2_5 + btts.** ❌ **BLOCKED / deferred to Phase 1 (2026-06-14).** OddsPortal
+  serves only 1X2 to anonymous users; the O/U and BTTS sub-market tabs redirect logged-out
+  users back to `:1X2;2` (verified via deep-link, synthetic hashchange, and warm
+  second-navigation — all revert). The event id is recoverable from the results row's H2H
+  link fragment (`#<eventId>`), and the match page is reachable, but the sub-markets need a
+  **logged-in OddsPortal session**. Deferred: needs auth we don't have, and it wouldn't change
+  the gate verdict (model already loses on O/U/BTTS vs the empirical fallback; real odds are
+  sharper). O/U/BTTS keep the backtest's empirical-rate fallback until a logged-in source exists.
 
 ## Tests (offline, against saved fixtures — mirror `tests/ingest/` FakeSource pattern)
 - Save real rendered HTML fixtures under `tests/fixtures/oddsportal/` (one results page, one
