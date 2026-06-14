@@ -1,0 +1,43 @@
+{
+  "pooled": {
+    "1x2": {
+      "model_brier": 0.690820101898015,
+      "baseline_brier": 0.5419334788489782,
+      "n": 41
+    },
+    "ou_2_5": {
+      "model_brier": 0.5527595418638326,
+      "baseline_brier": 0.4997032014668443,
+      "n": 41
+    },
+    "btts": {
+      "model_brier": 0.6368025480014037,
+      "baseline_brier": 0.5127686686277354,
+      "n": 41
+    },
+    "corners_total_9_5": {
+      "model_brier": NaN,
+      "baseline_brier": NaN,
+      "n": 0
+    }
+  },
+  "per_tournament": {
+    "INT-European Championship|2024": {
+      "1x2": {
+        "model_brier": 0.690820101898015,
+        "baseline_brier": 0.5419334788489782,
+        "n": 41
+      },
+      "ou_2_5": {
+        "model_brier": 0.5527595418638326,
+        "baseline_brier": 0.4997032014668443,
+        "n": 41
+      },
+      "btts": {
+        "model_brier": 0.6368025480014037,
+        "baseline_brier": 0.5127686686277354,
+        "n": 41
+      }
+    }
+  }
+}

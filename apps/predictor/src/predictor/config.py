@@ -33,6 +33,14 @@ class Settings(BaseSettings):
         default=APP_ROOT / "data" / "notes",
         description="Filesystem directory watched for Claude qualitative notes.",
     )
+    oddsportal_cache_dir: Path = Field(
+        default=APP_ROOT / "data" / "oddsportal_cache",
+        description=(
+            "Directory for the offline OddsPortal rendered-HTML cache. The "
+            "loader renders each page once via a headless browser, caches it "
+            "here, and serves cached HTML on re-runs."
+        ),
+    )
     log_level: str = Field(default="INFO")
     the_odds_api_key: str | None = Field(default=None, alias="THE_ODDS_API_KEY")
     cors_allow_origins: tuple[str, ...] = Field(

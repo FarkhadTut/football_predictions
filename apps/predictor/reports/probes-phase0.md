@@ -34,6 +34,16 @@ The decomposition told us to escalate before writing the corners code path if `c
    - Defer corners odds to the 1xbet scraper (Step 5.2) and accept it’s single-book.
 3. **Backtest impact**: Brier acceptance gate (REQ-007) compares model probabilities to fair probabilities. Historical fair odds for BTTS/corners come from Football-Data.co.uk’s Pinnacle closing odds (still available for Euro 2024, WC 2022, prior majors), **not** the-odds-api. So the calibration gate is unaffected — only live Phase 0 EV display loses two markets.
 
+> **CORRECTION (2026-06-14):** Item 3's Football-Data.co.uk claim was **wrong** — it
+> was never verified. FD.co.uk carries **domestic club leagues only**; it has no World
+> Cup / Euro match odds (its only "World Cup" file is `WorldCup2026.xlsx`, a forward
+> simulation). The historical implied-odds baseline is now sourced from **OddsPortal**
+> via a browser-render + offline-cache loader (`predictor.odds.oddsportal`). Coverage:
+> 1X2 for WC 2018, Euro 2016/2020/2024. **Not** available: WC 2014 (OddsPortal gates
+> odds >~12y behind login), WC 2022 (no FBref results loaded), corners (no source).
+> O/U 2.5 + BTTS odds are pending (M2 — per-match detail pages). See
+> `tasks/plans/steady-swinging-pine.md`.
+
 **Recommendation**: keep BTTS and corners marginals in the model + UI (model output panel shows them with an "indicative — no book" badge), drop EV computation for those two markets in Phase 0, revisit in Phase 1 when 1xbet HTML scraper matures.
 
 ---

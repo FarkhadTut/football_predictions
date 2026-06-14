@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -39,6 +40,8 @@ from predictor.backtest.acceptance import (
 from predictor.backtest.metrics import brier_score, reliability
 from predictor.model.dixon_coles import DixonColesModel
 from predictor.model.markets import corner_total_prob_at_least, from_score_matrix
+
+logger = logging.getLogger(__name__)
 
 # Outcome index conventions (must match the column order in `probs` matrices).
 _H2H_INDEX = {"home": 0, "draw": 1, "away": 2}
@@ -195,6 +198,7 @@ def run_walk_forward(
         by_tournament.setdefault(tm.tournament_id, []).append(tm)
 
     predictions: list[MatchPrediction] = []
+    skipped_unknown = 0
     for tournament_id, matches in by_tournament.items():
         first_kickoff = min(m.kickoff_utc for m in matches)
         train_mask = pd.to_datetime(training_matches["kickoff_utc"]) < pd.Timestamp(first_kickoff)
@@ -205,7 +209,22 @@ def run_walk_forward(
             )
         model = DixonColesModel(half_life_days=half_life_days)
         model.fit(train, as_of=first_kickoff)
+        params = model.params
+        assert params is not None  # fit() populates params
+        known = set(params.teams)
         for tm in matches:
+            # A team making its tournament debut has no pre-tournament training
+            # row, so the model never saw it. Skip rather than crash; these are
+            # rare and excluding them keeps the walk-forward honest.
+            if tm.home_team not in known or tm.away_team not in known:
+                skipped_unknown += 1
+                logger.warning(
+                    "backtest skip (unseen team): %s vs %s in %s",
+                    tm.home_team,
+                    tm.away_team,
+                    tournament_id,
+                )
+                continue
             predictions.append(
                 _predict_one(
                     tm,
@@ -215,6 +234,10 @@ def run_walk_forward(
                 )
             )
 
+    if skipped_unknown:
+        logger.warning(
+            "backtest skipped %d test match(es) with unseen teams", skipped_unknown
+        )
     return aggregate(predictions)
 
 
@@ -459,3 +482,7 @@ __all__ = [
     "to_json_payload",
     "write_reports",
 ]
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())

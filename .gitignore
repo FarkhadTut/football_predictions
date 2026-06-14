@@ -35,6 +35,9 @@ apps/predictor/data/*.db
 apps/predictor/data/*.db-journal
 apps/predictor/data/raw/
 apps/predictor/data/cache/
+# OddsPortal rendered-HTML cache: regenerable (scripts/ingest_oddsportal.py) and
+# third-party HTML we shouldn't vendor. Re-render to repopulate.
+apps/predictor/data/oddsportal_cache/
 apps/predictor/reports/runs/
 apps/ui/dist/
 
