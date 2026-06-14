@@ -75,19 +75,19 @@ class FakeSource:
 
 
 def _h2h(home: str, away: str, h: float, d: float, a: float, *, on: date) -> list[OddsRow]:
-    common = {
-        "competition": COMP,
-        "season": SEASON,
-        "home_team": home,
-        "away_team": away,
-        "match_date": on,
-        "market": "h2h",
-    }
-    return [
-        OddsRow(**common, outcome="home", decimal_odds=h),
-        OddsRow(**common, outcome="draw", decimal_odds=d),
-        OddsRow(**common, outcome="away", decimal_odds=a),
-    ]
+    def _row(outcome: str, odds: float) -> OddsRow:
+        return OddsRow(
+            competition=COMP,
+            season=SEASON,
+            home_team=home,
+            away_team=away,
+            match_date=on,
+            market="h2h",
+            outcome=outcome,
+            decimal_odds=odds,
+        )
+
+    return [_row("home", h), _row("draw", d), _row("away", a)]
 
 
 def _rows_for(session: Session, match_id: int) -> dict[str, float]:

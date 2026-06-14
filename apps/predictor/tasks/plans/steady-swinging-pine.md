@@ -157,3 +157,24 @@ The plan is structurally sound and effectively addresses the missing implied-odd
 - **Pre-fetch Reference Data in `load.py`**: Instead of querying `Team` and `Match` per row, fetch all matches for the target `(competition, season)` upfront. Store them in an in-memory dictionary keyed by `(normalized_home, normalized_away)` to resolve matches instantly without database roundtrips.
 - **Graceful Parsing Fallbacks**: Ensure `parse.py` ignores outcomes containing `-`, skipping the creation of an `OddsRow` for that specific outcome to prevent runtime crashes.
 - **Consolidate the Implementation**: Flatten the proposed `oddsportal/` directory into a single `src/predictor/odds/oddsportal.py` module to maintain architectural parity with existing integrations, grouping pure functions at the top and the I/O operations at the bottom.
+
+---
+
+## Gemini Review
+
+_Generated: 2026-06-14 22:26:19_
+
+### Summary
+The plan outlines a solid, pragmatic approach to acquiring historical odds by using a headless browser with an offline caching layer. By deferring authenticated scraping (O/U and BTTS) to Phase 1, it maintains focus on unblocking the backtest gate with the available 1X2 data.
+
+### Issues Found
+- [MEDIUM] Timezone drift in match resolution: Comparing `kickoff_utc` date directly to the rendered `kickoff_date` may fail for matches played near midnight UTC, as headless browsers often render dates in the local system timezone.
+- [MEDIUM] N+1 Query Performance: Executing individual `Team` and `Match` database lookups for every extracted `OddsRow` in `_resolve_match_fuzzy` will lead to N+1 query overhead during bulk historical ingestion.
+- [LOW] Missing odds handling: OddsPortal often displays a dash (`-`) for suspended or missing odds. If `parse.py` attempts to cast this directly to a `float` for `decimal_odds`, it will crash with a `ValueError`.
+- [LOW] Architectural divergence: Introducing a 6-file sub-package (`oddsportal/`) diverges from the established single-file source module pattern (e.g., `one_x_bet.py`, `the_odds_api.py`).
+
+### Recommendations
+- **Implement a +/- 24h Date Tolerance:** In `_resolve_match_fuzzy`, allow a 1-day difference when matching dates to safely absorb timezone boundary shifts. The combination of competition, season, and normalized team names is sufficient to guarantee uniqueness.
+- **Pre-fetch Reference Data:** In `load_oddsportal`, query all `Match` and `Team` records for the target `(competition, season)` upfront. Store them in an in-memory dictionary keyed by `(normalized_home, normalized_away)` for O(1) resolution without N+1 database roundtrips.
+- **Graceful Parsing Fallbacks:** Ensure `parse.py` explicitly handles `-` or empty values, skipping the creation of an `OddsRow` for that outcome rather than crashing the entire pipeline.
+- **Consolidate Structure:** Consider flattening the proposed `oddsportal/` directory into a single `src/predictor/odds/oddsportal.py` module to maintain architectural parity with existing integrations, grouping pure functions at the top and I/O operations at the bottom.

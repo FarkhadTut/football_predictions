@@ -180,6 +180,8 @@ def run_walk_forward(
     half_life_days: float | None = None,
     max_goals: int = 10,
     corners_line: float = 9.5,
+    neutral_venue: bool = False,
+    ridge: float = 0.0,
 ) -> BacktestReport:
     """Refit DC per tournament, score every test match, aggregate.
 
@@ -207,8 +209,8 @@ def run_walk_forward(
             raise ValueError(
                 f"no training data before tournament {tournament_id} start {first_kickoff}"
             )
-        model = DixonColesModel(half_life_days=half_life_days)
-        model.fit(train, as_of=first_kickoff)
+        model = DixonColesModel(half_life_days=half_life_days, neutral_venue=neutral_venue)
+        model.fit(train, as_of=first_kickoff, ridge=ridge)
         params = model.params
         assert params is not None  # fit() populates params
         known = set(params.teams)
@@ -445,8 +447,21 @@ def _main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--half-life-days",
         type=float,
-        default=None,
-        help="exponential time-weighting half-life (default: uniform weights)",
+        default=540.0,
+        help="exponential time-weighting half-life in days (default: %(default)s; "
+        "tuned on the walk-forward gate). Pass a large value for ~uniform weights.",
+    )
+    parser.add_argument(
+        "--ridge",
+        type=float,
+        default=2.0,
+        help="L2 shrinkage on team strengths (default: %(default)s; 0 = plain MLE)",
+    )
+    parser.add_argument(
+        "--no-neutral",
+        action="store_true",
+        help="apply home advantage (default: neutral-venue, no home edge — these "
+        "are international tournaments)",
     )
     args = parser.parse_args(argv)
 
@@ -468,6 +483,8 @@ def _main(argv: Sequence[str] | None = None) -> int:
         training_matches=training,
         test_matches=test_matches,
         half_life_days=args.half_life_days,
+        neutral_venue=not args.no_neutral,
+        ridge=args.ridge,
     )
     write_reports(report, md_path=Path(args.report), json_path=Path(args.json))
     result = check(report)

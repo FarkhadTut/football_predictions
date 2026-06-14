@@ -255,3 +255,105 @@ def test_rho_correction_shifts_low_score_cells() -> None:
     assert tau_correction(1, 0, lam, mu, rho) == pytest.approx(1.0 + mu * rho)
     assert tau_correction(0, 1, lam, mu, rho) == pytest.approx(1.0 + lam * rho)
     assert tau_correction(1, 1, lam, mu, rho) == pytest.approx(1.0 - rho)
+
+
+# ---------------------------------------------------------------------------
+# Neutral-venue mode + ridge regularization
+# ---------------------------------------------------------------------------
+
+
+def _round_robin(teams: list[str], *, goals: dict[tuple[str, str], tuple[int, int]]) -> pd.DataFrame:
+    """Build a small match frame from an explicit (home, away) -> (hg, ag) map."""
+    base = pd.Timestamp("2024-01-01")
+    rows = []
+    for i, ((h, a), (hg, ag)) in enumerate(goals.items()):
+        rows.append(
+            {
+                "home_team": h,
+                "away_team": a,
+                "home_goals": hg,
+                "away_goals": ag,
+                "kickoff_utc": base + pd.Timedelta(days=i),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def test_neutral_venue_fixes_home_adv_at_zero_and_is_symmetric() -> None:
+    rng = np.random.default_rng(7)
+    teams = [f"T{i}" for i in range(6)]
+    attack = rng.normal(0, 0.4, size=6)
+    defence = rng.normal(0, 0.4, size=6)
+    # Generate with a real home edge; the neutral fit must still ignore it.
+    df = _simulate_matches(
+        rng=rng, teams=teams, attack=attack, defence=defence, home_adv=0.3, rho=-0.05, n_matches=400
+    )
+    model = DixonColesModel(neutral_venue=True).fit(df)
+    assert model.params is not None
+    assert model.params.home_adv == 0.0
+
+    # predict_lambdas(A, B) must be the reverse of predict_lambdas(B, A):
+    # with no home edge the venue label carries no information.
+    lam_ab, mu_ab = model.predict_lambdas("T0", "T1")
+    lam_ba, mu_ba = model.predict_lambdas("T1", "T0")
+    assert lam_ab == pytest.approx(mu_ba)
+    assert mu_ab == pytest.approx(lam_ba)
+
+
+def test_ridge_shrinks_team_strength_spread() -> None:
+    # Lopsided results would push unregularised strengths far apart.
+    teams = ["A", "B", "C", "D"]
+    goals = {
+        ("A", "B"): (5, 0),
+        ("A", "C"): (4, 0),
+        ("A", "D"): (6, 1),
+        ("B", "C"): (1, 1),
+        ("D", "B"): (0, 3),
+        ("C", "D"): (2, 2),
+    }
+    df = _round_robin(teams, goals=goals)
+    plain = DixonColesModel(neutral_venue=True).fit(df, ridge=0.0)
+    reg = DixonColesModel(neutral_venue=True).fit(df, ridge=8.0)
+    assert plain.params is not None and reg.params is not None
+
+    plain_spread = float(np.std(plain.params.attack)) + float(np.std(plain.params.defence))
+    reg_spread = float(np.std(reg.params.attack)) + float(np.std(reg.params.defence))
+    assert reg_spread < plain_spread
+
+
+def test_ridge_gradient_matches_numerical() -> None:
+    # The ridge penalty must be reflected in the analytic gradient.
+    rng = np.random.default_rng(3)
+    teams = [f"T{i}" for i in range(5)]
+    df = _simulate_matches(
+        rng=rng,
+        teams=teams,
+        attack=rng.normal(0, 0.3, 5),
+        defence=rng.normal(0, 0.3, 5),
+        home_adv=0.0,
+        rho=0.0,
+        n_matches=120,
+    )
+    n_teams = len(teams)
+    idx = {t: i for i, t in enumerate(teams)}
+    kwargs = dict(
+        home_idx=df["home_team"].map(idx).to_numpy(),
+        away_idx=df["away_team"].map(idx).to_numpy(),
+        home_goals=df["home_goals"].to_numpy(float),
+        away_goals=df["away_goals"].to_numpy(float),
+        weights=np.ones(len(df)),
+        n_teams=n_teams,
+        ridge=3.0,
+    )
+    vec = _pack(np.zeros(n_teams), np.zeros(n_teams), 0.0, 0.0)
+    vec = vec + rng.normal(0, 0.1, size=vec.size)
+    _, grad = _neg_log_lik_and_grad(vec, **kwargs)
+    eps = 1e-6
+    for k in range(vec.size):
+        bumped = vec.copy()
+        bumped[k] += eps
+        f_plus, _ = _neg_log_lik_and_grad(bumped, **kwargs)
+        bumped[k] -= 2 * eps
+        f_minus, _ = _neg_log_lik_and_grad(bumped, **kwargs)
+        num = (f_plus - f_minus) / (2 * eps)
+        assert grad[k] == pytest.approx(num, abs=1e-4)

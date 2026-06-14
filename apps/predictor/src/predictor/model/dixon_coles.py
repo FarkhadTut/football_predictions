@@ -151,8 +151,15 @@ def _neg_log_lik_and_grad(
     away_goals: np.ndarray,
     weights: np.ndarray,
     n_teams: int,
+    ridge: float = 0.0,
 ) -> tuple[float, np.ndarray]:
     """Negative weighted log-likelihood and its gradient w.r.t. ``vec``.
+
+    ``ridge`` adds an L2 penalty ``0.5·ridge·(Σα² + Σδ²)`` on the team
+    attack/defence strengths (not γ or ρ), shrinking them toward the
+    league-average team. This regularises the fit on the small per-team
+    samples typical of international tournaments, where unpenalised MLE
+    is badly overconfident.
 
     Derivation
     ----------
@@ -187,6 +194,11 @@ def _neg_log_lik_and_grad(
 
     log_lik_per = weights * (np.log(tau) + log_pois_h + log_pois_a)
     neg_log_lik = -float(np.sum(log_lik_per))
+
+    # L2 (ridge) penalty on team strengths. α_0 is held at 0, so it is
+    # excluded automatically; δ is penalised in full.
+    if ridge > 0.0:
+        neg_log_lik += 0.5 * ridge * float(np.sum(attack**2) + np.sum(defence**2))
 
     # --- Gradient ---
     # Per-match partials of Poisson piece w.r.t. λ and μ (× λ or μ since
@@ -240,7 +252,13 @@ def _neg_log_lik_and_grad(
     grad_home_adv = float(np.sum(g_logl))
 
     # Negate (we minimize -log L) and drop α_0 (held fixed).
-    grad_vec = np.concatenate([-grad_attack[1:], -grad_defence, [-grad_home_adv, -g_rho]])
+    grad_attack_vec = -grad_attack[1:]
+    grad_defence_vec = -grad_defence
+    if ridge > 0.0:
+        # ∂/∂θ [0.5·ridge·θ²] = ridge·θ, added to the (negated) NLL gradient.
+        grad_attack_vec = grad_attack_vec + ridge * attack[1:]
+        grad_defence_vec = grad_defence_vec + ridge * defence
+    grad_vec = np.concatenate([grad_attack_vec, grad_defence_vec, [-grad_home_adv, -g_rho]])
     return neg_log_lik, grad_vec
 
 
@@ -265,6 +283,12 @@ class DixonColesModel:
         Box constraints for ρ. Defaults to (-0.2, 0.2) which is wide
         enough for any plausible football dataset and keeps τ > 0 even
         when λμ ≈ 5.
+    neutral_venue : bool
+        When ``True``, the home-advantage term γ is fixed at 0 and not
+        estimated, so ``λ_home = exp(α_home + δ_away)`` is symmetric with
+        ``λ_away``. Use for international tournaments, which are played at
+        neutral venues — applying a club-style home edge to an arbitrary
+        "home" designation is a systematic miscalibration.
     """
 
     def __init__(
@@ -272,9 +296,11 @@ class DixonColesModel:
         *,
         half_life_days: float | None = None,
         rho_bounds: tuple[float, float] = (-0.2, 0.2),
+        neutral_venue: bool = False,
     ) -> None:
         self.half_life_days = half_life_days
         self.rho_bounds = rho_bounds
+        self.neutral_venue = neutral_venue
         self.params: DixonColesParams | None = None
         self._team_idx: dict[str, int] = {}
         self._opt_result: object | None = None
@@ -288,12 +314,14 @@ class DixonColesModel:
         as_of: datetime | None = None,
         max_iter: int = 500,
         tol: float = 1e-8,
+        ridge: float = 0.0,
     ) -> DixonColesModel:
         """Fit the model on a match dataframe.
 
         ``matches`` must contain ``home_team, away_team, home_goals,
         away_goals, kickoff_utc``. Time weighting is computed relative
         to ``as_of`` (defaults to the latest kickoff in the dataset).
+        ``ridge`` is the L2 shrinkage strength on team strengths (0 = MLE).
         """
         missing = [c for c in REQUIRED_COLUMNS if c not in matches.columns]
         if missing:
@@ -315,12 +343,17 @@ class DixonColesModel:
         weights = self._compute_weights(matches["kickoff_utc"], as_of)
 
         # Starting point: zero strengths, modest home advantage, no rho.
+        # At a neutral venue γ is fixed at 0 (frozen via equal bounds) so the
+        # nominal home/away labels carry no advantage.
         x0 = np.zeros(2 * n_teams + 1)
-        x0[-2] = 0.25  # γ ≈ log(1.28), a reasonable home-edge prior
+        x0[-2] = 0.0 if self.neutral_venue else 0.25  # γ ≈ log(1.28) home edge
         x0[-1] = 0.0
 
+        home_adv_bound: tuple[float | None, float | None] = (
+            (0.0, 0.0) if self.neutral_venue else (-2.0, 2.0)
+        )
         bounds: list[tuple[float | None, float | None]] = [(None, None)] * (2 * n_teams - 1) + [
-            (-2.0, 2.0),
+            home_adv_bound,
             self.rho_bounds,
         ]
 
@@ -335,6 +368,7 @@ class DixonColesModel:
                 away_goals=away_goals,
                 weights=weights,
                 n_teams=n_teams,
+                ridge=ridge,
             )
 
         result = minimize(
@@ -348,13 +382,22 @@ class DixonColesModel:
         self._opt_result = result
         attack, defence, home_adv, rho = _unpack(result.x, n_teams)
 
-        # Re-center to mean(α) = mean(δ) = 0, absorbing the shift into γ.
-        # log λ is invariant under (α → α + c_α, δ → δ + c_δ, γ → γ − c_α − c_δ).
-        c_alpha = float(np.mean(attack))
-        c_delta = float(np.mean(defence))
-        attack = attack - c_alpha
-        defence = defence - c_delta
-        home_adv = home_adv + c_alpha + c_delta
+        if self.neutral_venue:
+            # No γ to absorb a shift into; use the gauge (α → α − c, δ → δ + c),
+            # which leaves every λ = α_i + δ_j invariant, to set mean(α) = 0.
+            # γ stays exactly 0.
+            c = float(np.mean(attack))
+            attack = attack - c
+            defence = defence + c
+            home_adv = 0.0
+        else:
+            # Re-center to mean(α) = mean(δ) = 0, absorbing the shift into γ.
+            # log λ is invariant under (α → α + c_α, δ → δ + c_δ, γ → γ − c_α − c_δ).
+            c_alpha = float(np.mean(attack))
+            c_delta = float(np.mean(defence))
+            attack = attack - c_alpha
+            defence = defence - c_delta
+            home_adv = home_adv + c_alpha + c_delta
 
         self.params = DixonColesParams(
             teams=teams,
