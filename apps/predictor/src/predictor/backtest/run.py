@@ -183,13 +183,39 @@ def run_walk_forward(
     neutral_venue: bool = False,
     ridge: float = 0.0,
 ) -> BacktestReport:
-    """Refit DC per tournament, score every test match, aggregate.
+    """Refit DC per tournament, score every test match, aggregate."""
+    return aggregate(
+        walk_forward_predictions(
+            training_matches=training_matches,
+            test_matches=test_matches,
+            half_life_days=half_life_days,
+            max_goals=max_goals,
+            corners_line=corners_line,
+            neutral_venue=neutral_venue,
+            ridge=ridge,
+        )
+    )
+
+
+def walk_forward_predictions(
+    *,
+    training_matches: pd.DataFrame,
+    test_matches: Sequence[TestMatch],
+    half_life_days: float | None = None,
+    max_goals: int = 10,
+    corners_line: float = 9.5,
+    neutral_venue: bool = False,
+    ridge: float = 0.0,
+) -> list[MatchPrediction]:
+    """Per-match predictions from the walk-forward (pre-aggregation).
 
     ``training_matches`` is the full historical corpus (must contain the
     columns required by :meth:`DixonColesModel.fit`). For each unique
     tournament in ``test_matches``, the model is fit on rows of
     ``training_matches`` with ``kickoff_utc`` strictly before the first test
-    kickoff in that tournament — this is the walk-forward boundary.
+    kickoff in that tournament — this is the walk-forward boundary. Exposed
+    separately from :func:`run_walk_forward` so consumers (e.g. the ROI
+    simulation) can join model probabilities back to raw market odds.
     """
     if "kickoff_utc" not in training_matches.columns:
         raise ValueError("training_matches must contain kickoff_utc")
@@ -240,7 +266,7 @@ def run_walk_forward(
         logger.warning(
             "backtest skipped %d test match(es) with unseen teams", skipped_unknown
         )
-    return aggregate(predictions)
+    return predictions
 
 
 def _predict_one(
@@ -501,6 +527,7 @@ __all__ = [
     "render_markdown",
     "run_walk_forward",
     "to_json_payload",
+    "walk_forward_predictions",
     "write_reports",
 ]
 
