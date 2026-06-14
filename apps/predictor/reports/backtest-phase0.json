@@ -1,19 +1,19 @@
 {
   "pooled": {
     "1x2": {
-      "model_brier": 0.690820101898015,
-      "baseline_brier": 0.5419334788489782,
-      "n": 41
+      "model_brier": 0.7691584110403242,
+      "baseline_brier": 0.5747307258535301,
+      "n": 123
     },
     "ou_2_5": {
-      "model_brier": 0.5527595418638326,
-      "baseline_brier": 0.4997032014668443,
-      "n": 41
+      "model_brier": 0.6667298181085677,
+      "baseline_brier": 0.5253252032520324,
+      "n": 123
     },
     "btts": {
-      "model_brier": 0.6368025480014037,
-      "baseline_brier": 0.5127686686277354,
-      "n": 41
+      "model_brier": 0.5887634244898946,
+      "baseline_brier": 0.5027642276422764,
+      "n": 123
     },
     "corners_total_9_5": {
       "model_brier": NaN,
@@ -22,20 +22,71 @@
     }
   },
   "per_tournament": {
+    "INT-European Championship|2016": {
+      "1x2": {
+        "model_brier": 1.3768609905070708,
+        "baseline_brier": 0.7443734414775911,
+        "n": 8
+      },
+      "ou_2_5": {
+        "model_brier": 1.126703283823471,
+        "baseline_brier": 0.7022222222222223,
+        "n": 8
+      },
+      "btts": {
+        "model_brier": 0.47712727041006875,
+        "baseline_brier": 0.5355555555555556,
+        "n": 8
+      }
+    },
+    "INT-World Cup|2018": {
+      "1x2": {
+        "model_brier": 0.8481151769110095,
+        "baseline_brier": 0.6165516455383546,
+        "n": 36
+      },
+      "ou_2_5": {
+        "model_brier": 0.5993871276863831,
+        "baseline_brier": 0.5272222222222224,
+        "n": 36
+      },
+      "btts": {
+        "model_brier": 0.46214092152506847,
+        "baseline_brier": 0.5059259259259261,
+        "n": 36
+      }
+    },
+    "INT-European Championship|2020": {
+      "1x2": {
+        "model_brier": 0.6509427917707462,
+        "baseline_brier": 0.5366806161954041,
+        "n": 38
+      },
+      "ou_2_5": {
+        "model_brier": 0.7566595669378721,
+        "baseline_brier": 0.4903801169590645,
+        "n": 38
+      },
+      "btts": {
+        "model_brier": 0.6803922475267491,
+        "baseline_brier": 0.5022222222222223,
+        "n": 38
+      }
+    },
     "INT-European Championship|2024": {
       "1x2": {
         "model_brier": 0.690820101898015,
-        "baseline_brier": 0.5419334788489782,
+        "baseline_brier": 0.5401748559355453,
         "n": 41
       },
       "ou_2_5": {
         "model_brier": 0.5527595418638326,
-        "baseline_brier": 0.4997032014668443,
+        "baseline_brier": 0.5215311653116531,
         "n": 41
       },
       "btts": {
         "model_brier": 0.6368025480014037,
-        "baseline_brier": 0.5127686686277354,
+        "baseline_brier": 0.49409214092140924,
         "n": 41
       }
     }

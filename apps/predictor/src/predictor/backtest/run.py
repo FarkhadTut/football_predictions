@@ -458,7 +458,11 @@ def _main(argv: Sequence[str] | None = None) -> int:
         load_training_matches,
     )
 
-    training = load_training_matches()
+    # Full corpus as the training pool (held_out=()): each held-out fold trains
+    # on all tournaments before its kickoff via run_walk_forward's temporal
+    # boundary, so earlier held-out tournaments still train later folds
+    # (expanding-window walk-forward) without leakage.
+    training = load_training_matches(held_out=())
     test_matches = load_test_matches()
     report = run_walk_forward(
         training_matches=training,

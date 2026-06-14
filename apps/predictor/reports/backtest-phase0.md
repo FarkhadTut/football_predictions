@@ -1,6 +1,6 @@
 # Backtest — Phase 0
 
-_Generated: 2026-06-14T20:18:23_
+_Generated: 2026-06-14T21:29:48_
 
 **Acceptance**: FAIL (0/4 markets at ratio ≤ 0.98)
 
@@ -8,18 +8,45 @@ _Generated: 2026-06-14T20:18:23_
 
 | Market | model | baseline | ratio | n | verdict |
 |---|---:|---:|---:|---:|:---:|
-| `1x2` | 0.6908 | 0.5419 | 1.2747 | 41 | fail |
-| `ou_2_5` | 0.5528 | 0.4997 | 1.1062 | 41 | fail |
-| `btts` | 0.6368 | 0.5128 | 1.2419 | 41 | fail |
+| `1x2` | 0.7692 | 0.5747 | 1.3383 | 123 | fail |
+| `ou_2_5` | 0.6667 | 0.5253 | 1.2692 | 123 | fail |
+| `btts` | 0.5888 | 0.5028 | 1.1711 | 123 | fail |
 | `corners_total_9_5` | nan | nan | nan | 0 | fail |
 
 ## Per tournament
+
+### INT-European Championship|2016
+
+| Market | model | baseline | n |
+|---|---:|---:|---:|
+| `1x2` | 1.3769 | 0.7444 | 8 |
+| `ou_2_5` | 1.1267 | 0.7022 | 8 |
+| `btts` | 0.4771 | 0.5356 | 8 |
+| `corners_total_9_5` | — | — | 0 |
+
+### INT-European Championship|2020
+
+| Market | model | baseline | n |
+|---|---:|---:|---:|
+| `1x2` | 0.6509 | 0.5367 | 38 |
+| `ou_2_5` | 0.7567 | 0.4904 | 38 |
+| `btts` | 0.6804 | 0.5022 | 38 |
+| `corners_total_9_5` | — | — | 0 |
 
 ### INT-European Championship|2024
 
 | Market | model | baseline | n |
 |---|---:|---:|---:|
-| `1x2` | 0.6908 | 0.5419 | 41 |
-| `ou_2_5` | 0.5528 | 0.4997 | 41 |
-| `btts` | 0.6368 | 0.5128 | 41 |
+| `1x2` | 0.6908 | 0.5402 | 41 |
+| `ou_2_5` | 0.5528 | 0.5215 | 41 |
+| `btts` | 0.6368 | 0.4941 | 41 |
+| `corners_total_9_5` | — | — | 0 |
+
+### INT-World Cup|2018
+
+| Market | model | baseline | n |
+|---|---:|---:|---:|
+| `1x2` | 0.8481 | 0.6166 | 36 |
+| `ou_2_5` | 0.5994 | 0.5272 | 36 |
+| `btts` | 0.4621 | 0.5059 | 36 |
 | `corners_total_9_5` | — | — | 0 |

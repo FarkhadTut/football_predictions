@@ -38,6 +38,12 @@ from predictor.db.session import get_engine, reset_engines_for_tests
 
 PREDICTOR_ROOT = Path(__file__).resolve().parents[2]
 
+# Explicit held-out set for these tests, independent of the production default
+# in ``dataset.HELD_OUT_TOURNAMENTS``. Fixtures use WC 2018 as a training-anchor
+# tournament and WC 2022 as the held-out test tournament, so hold out only the
+# latter here.
+_TH: tuple[tuple[str, str], ...] = (("INT-World Cup", "2022"),)
+
 
 def _alembic_config(db_url: str) -> Config:
     cfg = Config(str(PREDICTOR_ROOT / "alembic.ini"))
@@ -160,7 +166,7 @@ def test_load_training_matches_excludes_held_out_tournaments(session: Session) -
         away_goals=1,
     )
 
-    training = load_training_matches(session)
+    training = load_training_matches(session, held_out=_TH)
     assert len(training) == 1
     assert set(training.columns) >= {
         "home_team",
@@ -184,7 +190,7 @@ def test_load_training_matches_skips_unfinished_matches(session: Session) -> Non
         home_goals=None,
         away_goals=None,
     )
-    assert load_training_matches(session).empty
+    assert load_training_matches(session, held_out=_TH).empty
 
 
 def test_load_training_matches_sorted_by_kickoff(session: Session) -> None:
@@ -210,7 +216,7 @@ def test_load_training_matches_sorted_by_kickoff(session: Session) -> None:
         home_goals=0,
         away_goals=3,
     )
-    df = load_training_matches(session)
+    df = load_training_matches(session, held_out=_TH)
     assert list(df["kickoff_utc"]) == sorted(df["kickoff_utc"])
 
 
@@ -250,7 +256,7 @@ def test_load_test_matches_uses_de_vigged_odds_for_baseline(session: Session) ->
     _odds(session, match_id=m.id, market="h2h", outcome="draw", decimal_odds=4.0, fetched_at=pre_kick)
     _odds(session, match_id=m.id, market="h2h", outcome="away", decimal_odds=4.0, fetched_at=pre_kick)
 
-    test_matches = load_test_matches(session)
+    test_matches = load_test_matches(session, held_out=_TH)
     assert len(test_matches) == 1
     tm = test_matches[0]
     np.testing.assert_allclose(tm.baseline_probs["1x2"], [0.5, 0.25, 0.25], atol=1e-9)
@@ -288,7 +294,7 @@ def test_load_test_matches_prefers_latest_odds_snapshot_per_outcome(session: Ses
         _odds(session, match_id=m.id, market="h2h", outcome=outcome, decimal_odds=99.0, fetched_at=stale)
         _odds(session, match_id=m.id, market="h2h", outcome=outcome, decimal_odds=3.0, fetched_at=fresh)
 
-    [tm] = load_test_matches(session)
+    [tm] = load_test_matches(session, held_out=_TH)
     np.testing.assert_allclose(tm.baseline_probs["1x2"], [1 / 3, 1 / 3, 1 / 3], atol=1e-9)
 
 
@@ -320,7 +326,7 @@ def test_load_test_matches_falls_back_to_empirical_when_odds_missing(
         home_goals=1,
         away_goals=0,
     )
-    [tm] = load_test_matches(session)
+    [tm] = load_test_matches(session, held_out=_TH)
     np.testing.assert_allclose(tm.baseline_probs["1x2"], [0.75, 0.0, 0.25], atol=1e-9)
     # All required markets must be populated so acceptance.check() doesn't raise.
     assert set(tm.baseline_probs) >= {"1x2", "ou_2_5", "btts"}
@@ -338,7 +344,7 @@ def test_load_test_matches_skips_unfinished_held_out_matches(session: Session) -
         home_goals=None,
         away_goals=None,
     )
-    assert load_test_matches(session) == []
+    assert load_test_matches(session, held_out=_TH) == []
 
 
 def test_load_test_matches_includes_corner_lambdas_when_stats_present(
@@ -384,7 +390,7 @@ def test_load_test_matches_includes_corner_lambdas_when_stats_present(
         away_corners=5,
     )
 
-    [tm] = load_test_matches(session)
+    [tm] = load_test_matches(session, held_out=_TH)
     assert tm.corner_lambdas is not None
     lam_h, lam_a = tm.corner_lambdas
     assert lam_h == pytest.approx(8.0)
@@ -428,8 +434,8 @@ def test_dataset_feeds_walk_forward_end_to_end(session: Session) -> None:
             away_goals=int(rng.integers(0, 3)),
         )
 
-    training = load_training_matches(session)
-    test_matches = load_test_matches(session)
+    training = load_training_matches(session, held_out=_TH)
+    test_matches = load_test_matches(session, held_out=_TH)
     assert len(training) == n
     assert len(test_matches) == 6
     report = run_walk_forward(training_matches=training, test_matches=test_matches)
@@ -438,12 +444,14 @@ def test_dataset_feeds_walk_forward_end_to_end(session: Session) -> None:
         assert report.pooled[m]["n"] == 6
 
 
-def test_held_out_default_targets_recent_tournaments() -> None:
-    """Lock-in: the default held-out set is the two most recent international
-    tournaments in the catalog. Changing this changes which tournaments train
-    the model vs. score the gate, so the test exists to flag intentional
-    edits."""
+def test_held_out_default_targets_odds_backed_tournaments() -> None:
+    """Lock-in: held-out folds are the tournaments with an odds baseline
+    (Euro 2016/2020/2024, WC 2018). Each trains on earlier tournaments via the
+    walk-forward boundary. Changing this changes which tournaments train the
+    model vs. score the gate, so the test exists to flag intentional edits."""
     assert HELD_OUT_TOURNAMENTS == (
-        ("INT-World Cup", "2022"),
+        ("INT-European Championship", "2016"),
+        ("INT-World Cup", "2018"),
+        ("INT-European Championship", "2020"),
         ("INT-European Championship", "2024"),
     )

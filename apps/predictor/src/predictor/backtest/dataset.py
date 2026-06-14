@@ -11,10 +11,11 @@ Two public functions consumed by :func:`predictor.backtest.run._main`:
 
 Design points
 -------------
-* **Held-out set**: by default the two most recent international tournaments
-  in :data:`predictor.ingest.tournaments.TOURNAMENT_CATALOG` — WC 2022 and
-  Euro 2024. Older tournaments train the model. Override via the ``held_out``
-  argument (used by tests and for re-tuning).
+* **Held-out set**: the tournaments with an odds baseline (Euro 2016/2020/2024,
+  WC 2018) are each a walk-forward test fold. ``run._main`` passes the *full*
+  match corpus as the training pool, so each fold trains on all tournaments
+  before its kickoff (the temporal boundary in ``run_walk_forward`` prevents
+  leakage). Override via the ``held_out`` argument (used by tests and re-tuning).
 * **Baselines**: prefer the latest pre-kickoff ``OddsSnapshot`` per market,
   de-vigged with 1/odds-sum normalisation. When odds are missing we fall
   back to the training-set empirical base rates so the acceptance gate's
@@ -44,11 +45,17 @@ __all__ = [
     "load_training_matches",
 ]
 
-# (competition, season) pairs treated as held-out for the walk-forward gate.
-# These match the rows ingested by ``predictor.ingest.tournaments``; older
-# entries (Euro 2016 / 2020, WC 2014 / 2018) train the model.
+# (competition, season) pairs held out as walk-forward test folds. Every
+# tournament here that has an OddsPortal 1X2 baseline is scored against the
+# market; each fold trains on all *earlier* tournaments (the walk-forward
+# boundary in ``run_walk_forward`` enforces this — see ``_main``, which passes
+# the full corpus as the training pool). WC 2014 is excluded as a fold because
+# nothing precedes it to train on; WC 2022 is excluded because no results were
+# ingested for it (FBref cache gap).
 HELD_OUT_TOURNAMENTS: tuple[tuple[str, str], ...] = (
-    ("INT-World Cup", "2022"),
+    ("INT-European Championship", "2016"),
+    ("INT-World Cup", "2018"),
+    ("INT-European Championship", "2020"),
     ("INT-European Championship", "2024"),
 )
 
